@@ -18,6 +18,8 @@ We propose a unified framework which handles the whole video in sequential manne
 
 ## Referring Segmentation
 
+run `cd referring_segmentation` for referring video segmentation task.
+
 ### 1. Dataset
 
 Download the A2D Sentences dataset and J-HMDB Sentences dataset from [https://kgavrilyuk.github.io/publication/actor_action/](https://kgavrilyuk.github.io/publication/actor_action/) and convert the videos to RGB frames. The following directory structure is expected:
@@ -54,3 +56,30 @@ python main.py
 
 ## Temporal Sentence Grounding
 
+run `cd temporal_grounding` for referring temporal sentence grounding task.
+
+### 1. Dataset
+
+* For charades-STA dataset, download the pre-extracted I3D features following [LGI4temporalgrounding](https://github.com/JonghwanMun/LGI4temporalgrounding) and the pre-extracted VGG feature following [2D-TAN](https://github.com/microsoft/VideoX/tree/master/2D-TAN).
+
+* For TACoS dataset, download the pre-extracted C3D features following [2D-TAN](https://github.com/microsoft/VideoX/tree/master/2D-TAN)
+
+* For ActivityNet Captions dataset, download the pre-extracted C3D features from [http://activity-net.org/challenges/2016/download.html](http://activity-net.org/challenges/2016/download.html).
+
+### 2. Training and Evaluation
+
+To train on different dataset with different grounding heads, run
+
+```
+python main.py --json_file [json file path]
+```
+
+## Spatiotemporal grounding
+
+run `cd spatiotemporal_grounding` for spatiotemporal video grounding task. The code for spatiotemporal grounding is built on the [TubeDETR codebase](https://github.com/antoyang/TubeDETR).
+
+### 1. Dataset
+
+Preparing the `HC-STVG` and `VidSTG` datasets following the [TubeDETR](https://github.com/antoyang/TubeDETR).
+
+### 2. Training and Evaluation
