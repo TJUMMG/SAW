@@ -68,7 +68,26 @@ run `cd temporal_grounding` for referring temporal sentence grounding task.
 
 ### 2. Training and Evaluation
 
+The config files can be find in `./json` and the following model settings are supported
+
+```
+-config_ActivityNet_anchor.json
+-config_ActivityNet_regression.json
+-config_Charades-STA_I3D_anchor.json
+-config_Charades-STA_VGG_anchor.json
+-config_Charades-STA_I3D_regression.json
+-config_Charades-STA_VGG_regression.json
+-config_TACoS_anchor.json
+-config_TACoS_regression.json
+```
+
 To train on different dataset with different grounding heads, run
+
+```
+python main.py --json_file [json file path]
+```
+
+For evaluation, set `mode='test'` in the json file and run 
 
 ```
 python main.py --json_file [json file path]
