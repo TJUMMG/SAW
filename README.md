@@ -1,6 +1,6 @@
 # SAW
 
-The code for paper "Sequence as A Whole: A Unified Framework for Video Action Localization with Long-range Text Query"
+The official implementation for paper "Sequence as A Whole: A Unified Framework for Video Action Localization with Long-range Text Query"
 
 ![](./docs/net.png)
 
