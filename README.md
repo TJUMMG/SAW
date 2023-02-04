@@ -93,7 +93,7 @@ For evaluation, set `mode='test'` in the json file and run
 python main.py --json_file [json file path]
 ```
 
-## Spatiotemporal grounding
+## Spatiotemporal Video Grounding
 
 run `cd spatiotemporal_grounding` for spatiotemporal video grounding task. The code for spatiotemporal grounding is built on the [TubeDETR codebase](https://github.com/antoyang/TubeDETR).
 
@@ -102,3 +102,15 @@ run `cd spatiotemporal_grounding` for spatiotemporal video grounding task. The c
 Preparing the `HC-STVG` and `VidSTG` datasets following the [TubeDETR](https://github.com/antoyang/TubeDETR).
 
 ### 2. Training and Evaluation
+
+For traning, run
+
+```
+python main.py
+```
+
+For evaluation, run
+
+```
+python main.py --eval
+```
