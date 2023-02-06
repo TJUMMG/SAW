@@ -122,6 +122,6 @@ python main.py --eval
     title     = "{Sequence as A Whole: A Unified Framework for Video Action Localization with Long-range Text Query}",
     author    = {Yuting Su, Weikang Wang, Jing Liu, Shuang Ma, Xiaokang Yang},
     booktitle = {IEEE Transactions on Image Processing},
-    year      = {2020}
+    year      = {2023}
 }
 ```
