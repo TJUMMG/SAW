@@ -1,6 +1,10 @@
 {
-  "combine_datasets": ["vidstg"],
-  "combine_datasets_val": ["vidstg"],
-  "vidstg_vid_path" : "/media/wwk/HDD1/dataset/spatial_temporal_video_grounding/VidSTG",
-  "vidstg_ann_path" : "/media/wwk/HDD1/dataset/spatial_temporal_video_grounding/VidSTG/annotations/VidSTG"
+  "combine_datasets": [
+    "vidstg"
+  ],
+  "combine_datasets_val": [
+    "vidstg"
+  ],
+  "vidstg_vid_path": "",
+  "vidstg_ann_path": "./annotations/VidSTG"
 }

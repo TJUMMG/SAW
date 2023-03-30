@@ -99,27 +99,51 @@ run `cd spatiotemporal_grounding` for spatiotemporal video grounding task. The c
 
 ### 1. Dataset
 
-Preparing the `HC-STVG` and `VidSTG` datasets following the [TubeDETR](https://github.com/antoyang/TubeDETR).
+We prepare the `HC-STVG` and `VidSTG` datasets following the [TubeDETR](https://github.com/antoyang/TubeDETR). The annotation formation of the VidSTG dataset has been optimized to reduce the training memory usage. 
+
+**videos**
+
+VidSTG dataset: Download VidOR videos from [the VidOR dataset providers](https://xdshang.github.io/docs/vidor.html)
+
+HC-STVG dataset: Download HC-STVG videos from [the HC-STVG dataset providers](https://github.com/tzhhhh123/HC-STVG).
+
+Edit the item `vidstg_vid_path` in `spatiotemporal_grounding/config/vidstg.json` and the `hcstvg_vid_path` in `spatiotemporal_grounding/config/hcstvg.json` to be the current video path.
+
+**annotations**
+
+Download the preprocessed annotation files from \[[https://pan.baidu.com/s/1oiV9PmtRqRxxdxMvqrJj_w](https://pan.baidu.com/s/1oiV9PmtRqRxxdxMvqrJj_w), password: n6y4\]. Then put the downloaded `annotations` into `spatiotemporal_grounding`.
 
 ### 2. Training and Evaluation
 
-For traning, run
+To train on HC-STVG dataset, run
 
 ```
-python main.py
+python main.py --combine_datasets=hcstvg --combine_datasets_val=hcstvg --dataset_config config/hcstvg.json --output-dir=hcstvg_result
 ```
 
-For evaluation, run
+To train on VidSTG dataset, run
 
 ```
-python main.py --eval
+python main.py --combine_datasets=vidstg --combine_datasets_val=vidstg --dataset_config config/vidstg.json --output-dir=vidstg_result
+```
+
+To evaluate on HC-STVG dataset, run:
+
+```
+python main.py --combine_datasets=hcstvg --combine_datasets_val=hcstvg --dataset_config config/hcstvg.json --output-dir=hcstvg_result --eval
+```
+
+To evaluate on VidSTG dataset, run
+
+```
+python main.py --combine_datasets=vidstg --combine_datasets_val=vidstg --dataset_config config/vidstg.json --output-dir=vidstg_result --eval
 ```
 
 ## Citation
 
 ```
 @article{2023saw,
-    title     = "{Sequence as A Whole: A Unified Framework for Video Action Localization with Long-range Text Query}",
+    title     = {Sequence as A Whole: A Unified Framework for Video Action Localization with Long-range Text Query},
     author    = {Yuting Su, Weikang Wang, Jing Liu, Shuang Ma, Xiaokang Yang},
     booktitle = {IEEE Transactions on Image Processing},
     year      = {2023}

@@ -15,6 +15,7 @@ class PostProcessSTVG(nn.Module):
     def __init__(self, args):
         super().__init__()
         self.args = args
+
     @torch.no_grad()
     def forward(self, outputs, frames_id=None, video_ids=None, time_mask=None):
         """
@@ -25,17 +26,34 @@ class PostProcessSTVG(nn.Module):
         :return: list of B [start_frame, end_frame] for each video
         """
 
-        temporal_score, temporal_offset = outputs['temporal_score'], outputs['temporal_offset']
-        max_length = temporal_score.shape[1]//len(self.args.temporal_window_width)
-        proposals = generate_proposals(max_length, self.args.temporal_window_width).to(temporal_score.device)
-        refined_boxes = proposals[None, :] + temporal_offset
-        _, ind = torch.topk(temporal_score, 1, -1)
-        pred_steds = torch.gather(refined_boxes, 1, ind[..., None].repeat(1, 1, 2)).squeeze(1).long()    # b*2
-        
-        pred_steds = pred_steds.clamp(0, max_length-1)
+        if self.args.temporal_decoder_type == 'anchor':
+            temporal_score, temporal_offset = outputs['temporal_score'], outputs['temporal_offset']
+            max_length = temporal_score.shape[1]//len(
+                self.args.temporal_window_width)
+            proposals = generate_proposals(
+                max_length, self.args.temporal_window_width).to(temporal_score.device)
+            refined_boxes = proposals[None, :] + \
+                temporal_offset    # [b, t*n_windows, 2]
+            _, ind = torch.topk(temporal_score, 1, -1)
+            pred_steds = torch.gather(refined_boxes, 1, ind[..., None].repeat(
+                1, 1, 2)).squeeze(1).long()    # b*2
+            pred_steds = pred_steds.clamp(0, max_length-1)
+        elif self.args.temporal_decoder_type == 'regression':
+            temporal_score, temporal_reg = outputs['temporal_score'], outputs['temporal_reg']
+            max_length = temporal_score.shape[1]
+            index = torch.as_tensor([i for i in range(max_length)]).to(
+                temporal_score.device)[None]
+            pred_start = index - temporal_reg[:, :, 0]
+            pred_end = index + temporal_reg[:, :, 1]
+            predictions = torch.stack([pred_start, pred_end], dim=-1)
+            _, ind = torch.topk(temporal_score, 1, -1)
+            pred_steds = torch.gather(predictions, 1, ind[..., None].repeat(
+                1, 1, 2)).squeeze(1).long()    # b*2
+            pred_steds = pred_steds.clamp(0, max_length-1)
 
         frames_id = (
-            torch.tensor([row + [0] * (max_length - len(row)) for row in frames_id])
+            torch.tensor([row + [0] * (max_length - len(row))
+                         for row in frames_id])
             .long()
             .to(pred_steds.device)
         )  # padded up to BxT
@@ -67,11 +85,11 @@ class PostProcess(nn.Module):
         time, height, width = hm_s.size()
         topk_scores, topk_inds = torch.topk(hm_s.view(time, -1), 1)
         topk_inds = topk_inds % (height * width)
-        topk_ys = (topk_inds / width).int().float() # t*1
-        topk_xs = (topk_inds % width).int().float() # t*1
+        topk_ys = (topk_inds / width).int().float()  # t*1
+        topk_xs = (topk_inds % width).int().float()  # t*1
 
         pre_wh = torch.gather(wh_s.view(wh_s.shape[0], wh_s.shape[1], -1), -1,
-                                   topk_inds.unsqueeze(1).repeat(1, 2, 1))   # t*2*1
+                              topk_inds.unsqueeze(1).repeat(1, 2, 1))   # t*2*1
         out_bbox = torch.cat([topk_xs - pre_wh[:, 0, :] / 2,
                               topk_ys - pre_wh[:, 1, :] / 2,
                               topk_xs + pre_wh[:, 0, :] / 2,
@@ -79,9 +97,9 @@ class PostProcess(nn.Module):
         out_bbox[:, 2].clamp(0, width)
         out_bbox[:, 3].clamp(0, height)
 
-
         img_h, img_w = target_sizes.unbind(1)
-        scale_fct_out = torch.tensor([width, height, width, height]).float().unsqueeze(0).to(out_bbox.device)
+        scale_fct_out = torch.tensor(
+            [width, height, width, height]).float().unsqueeze(0).to(out_bbox.device)
         scale_fct = torch.stack([img_w, img_h, img_w, img_h], dim=1)
         boxes = (out_bbox / scale_fct_out) * scale_fct
 

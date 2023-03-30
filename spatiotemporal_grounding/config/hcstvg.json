@@ -1,6 +1,10 @@
 {
-  "combine_datasets": ["hcstvg"],
-  "combine_datasets_val": ["hcstvg"],
-  "hcstvg_vid_path" : "/media/wwk/HDD1/dataset/spatial_temporal_video_grounding/HC-STVG",
-  "hcstvg_ann_path" : "/media/wwk/HDD1/dataset/spatial_temporal_video_grounding/HC-STVG/annotations/anno_v1"
+  "combine_datasets": [
+    "hcstvg"
+  ],
+  "combine_datasets_val": [
+    "hcstvg"
+  ],
+  "hcstvg_vid_path": "",
+  "hcstvg_ann_path": "./annotations/HC-STVG/v1"
 }

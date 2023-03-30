@@ -24,6 +24,7 @@ import numpy as np
 import os
 from util.box_ops import box_cxcywh_to_xyxy
 
+
 def train_one_epoch(
     model: torch.nn.Module,
     criterion: Optional[torch.nn.Module],
@@ -35,14 +36,14 @@ def train_one_epoch(
     args,
     max_norm: float = 0,
     model_ema: Optional[torch.nn.Module] = None,
-    writer=None,
-    postprocessors=None
+    writer=None
 ):
     model.train()
     if criterion is not None:
         criterion.train()
     metric_logger = MetricLogger(delimiter="  ")
-    metric_logger.add_meter("lr", SmoothedValue(window_size=1, fmt="{value:.6f}"))
+    metric_logger.add_meter("lr", SmoothedValue(
+        window_size=1, fmt="{value:.6f}"))
     metric_logger.add_meter(
         "lr_backbone", SmoothedValue(window_size=1, fmt="{value:.6f}")
     )
@@ -93,14 +94,15 @@ def train_one_epoch(
         targets = [x for x in targets if len(x["boxes"])]
         assert len(targets) == len(outputs["spatial_map"]) == len(outputs["spatial_wh"]), (
             len(targets),
-            len(outputs["spatial_map"]), 
+            len(outputs["spatial_map"]),
             len(outputs["spatial_wh"])
         )
 
         # compute losses
         loss_dict = {}
         if criterion is not None:
-            loss_dict_cur, gaussian_gt = criterion(outputs, durations, inter_idx, targets)
+            loss_dict_cur, gaussian_gt = criterion(
+                outputs, durations, inter_idx, targets)
             loss_dict.update(loss_dict_cur)
 
         losses = sum(
@@ -152,41 +154,6 @@ def train_one_epoch(
         metric_logger.update(lr_backbone=optimizer.param_groups[1]["lr"])
         metric_logger.update(lr_text_encoder=optimizer.param_groups[2]["lr"])
 
-        if i%100 == 0:
-            if postprocessors != None:
-                caption = captions[0]
-                r_size = samples_viz.shape[-2:]
-                hm_viz = outputs['spatial_map'][0].sigmoid()
-                hm_viz = F.interpolate(hm_viz[None, ], r_size, mode='bilinear', align_corners=True)[0, 0]
-                hm_viz = ((hm_viz - hm_viz.min())*255 / (hm_viz.max() - hm_viz.min())).detach().cpu().numpy().astype(np.uint8)
-                hm_viz = cv2.applyColorMap(hm_viz, cv2.COLORMAP_HOT)
-
-                hm_gt_viz = gaussian_gt[0]
-                hm_gt_viz = F.interpolate(hm_gt_viz[None, ], r_size, mode='bilinear', align_corners=True)[0, 0]
-                hm_gt_viz = ((hm_gt_viz - hm_gt_viz.min())*255 / (hm_gt_viz.max() - hm_gt_viz.min())).detach().cpu().numpy().astype(np.uint8)
-                hm_gt_viz = cv2.applyColorMap(hm_gt_viz, cv2.COLORMAP_HOT)
-
-                samples_viz = samples_viz[0].permute(1, 2, 0).cpu().numpy()
-                samples_viz = ((samples_viz * [0.229, 0.224, 0.225] + [0.485, 0.456, 0.406]) * 255).astype(np.uint8)
-                samples_viz = cv2.cvtColor(samples_viz, cv2.COLOR_RGB2BGR)
-                out_viz = cv2.addWeighted(samples_viz, 1, hm_viz, 0.5, 1)
-                gt_viz = cv2.addWeighted(samples_viz, 1, hm_gt_viz, 0.5, 1)
-
-                orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)
-                boxes = postprocessors["bbox"](outputs, orig_target_sizes)
-                box_viz = boxes[0]['boxes'].cpu()
-                box_viz = box_viz / torch.tensor([orig_target_sizes[0][1], orig_target_sizes[0][0], orig_target_sizes[0][1], orig_target_sizes[0][0]])
-                box_viz = box_viz * torch.tensor([r_size[1], r_size[0], r_size[1], r_size[0]])
-                box_viz = box_viz.int().numpy()
-                box_gt_viz = targets[0]['boxes']
-                box_gt_viz = box_cxcywh_to_xyxy(box_gt_viz)[0].cpu() * torch.tensor([r_size[1], r_size[0], r_size[1], r_size[0]])
-                box_gt_viz = box_gt_viz.int().numpy()
-                cv2.rectangle(gt_viz, (box_gt_viz[0], box_gt_viz[1]), (box_gt_viz[2], box_gt_viz[3]), (255, 0, 0), 2)
-                cv2.rectangle(out_viz, (box_viz[0], box_viz[1]), (box_viz[2], box_viz[3]), (255, 0, 0), 2)
-
-                cv2.imwrite(os.path.join(args.output_dir, 'pre.jpg'), out_viz)
-                cv2.imwrite(os.path.join(args.output_dir, 'gt.jpg'), gt_viz)
-                
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
@@ -254,15 +221,16 @@ def evaluate(
 
         assert len(targets) == len(outputs["spatial_map"]) == len(outputs["spatial_wh"]), (
             len(targets),
-            len(outputs["spatial_map"]), 
+            len(outputs["spatial_map"]),
             len(outputs["spatial_wh"]),
             captions
         )
-        
+
         # compute losses
         loss_dict = {}
         if criterion is not None:
-            loss_dict.update(criterion(outputs, durations, inter_idx, targets)[0])
+            loss_dict.update(
+                criterion(outputs, durations, inter_idx, targets)[0])
 
         # reduce losses over all GPUs for logging purposes
         loss_dict_reduced = dist.reduce_dict(loss_dict)
@@ -289,7 +257,8 @@ def evaluate(
             outputs["spatial_wh"] = pred_wh_all
             outputs['maps'] = maps_all
 
-        orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)
+        orig_target_sizes = torch.stack(
+            [t["orig_size"] for t in targets], dim=0)
         results = postprocessors["bbox"](outputs, orig_target_sizes)
 
         vidstg_res = {} if "vidstg" in postprocessors.keys() else None
@@ -306,7 +275,8 @@ def evaluate(
 
             image_ids = [t["image_id"] for t in targets]
             for im_id, result in zip(image_ids, results):
-                vidstg_res[im_id] = {"boxes": [result["boxes"].detach().cpu().tolist()]}
+                vidstg_res[im_id] = {
+                    "boxes": [result["boxes"].detach().cpu().tolist()]}
 
             qtypes = batch_dict["qtype"]
             assert len(set(video_ids)) == len(qtypes)
@@ -334,7 +304,8 @@ def evaluate(
                 )
             image_ids = [t["image_id"] for t in targets]
             for im_id, result in zip(image_ids, results):
-                hcstvg_res[im_id] = {"boxes": [result["boxes"].detach().cpu().tolist()]}
+                hcstvg_res[im_id] = {
+                    "boxes": [result["boxes"].detach().cpu().tolist()]}
 
             if args.sted:
                 assert len(set(video_ids)) == len(pred_steds)
@@ -355,40 +326,7 @@ def evaluate(
             if isinstance(evaluator, VidSTGEvaluator):
                 evaluator.update(vidstg_res)
                 evaluator.video_update(vidstg_video_res)
-                if args.test:
-                    tsa_weights = [
-                        outputs["aux_outputs"][i_aux]["weights"]
-                        for i_aux in range(len(outputs["aux_outputs"]))
-                    ]
-                    tsa_weights.append(outputs["weights"])
-                    weights = torch.stack(tsa_weights)
-                    ca_weights = [
-                        outputs["aux_outputs"][i_aux]["ca_weights"]
-                        for i_aux in range(len(outputs["aux_outputs"]))
-                    ]
-                    ca_weights.append(outputs["ca_weights"])
-                    ca_weights = torch.stack(ca_weights)
-                    text_weights = ca_weights[
-                        ..., -len(memory_cache["text_memory_resized"]) :
-                    ]
-                    spatial_weights = ca_weights[
-                        ..., : -len(memory_cache["text_memory_resized"])
-                    ].reshape(
-                        ca_weights.shape[0],
-                        ca_weights.shape[1],
-                        ca_weights.shape[2],
-                        math.ceil(samples.tensors.shape[2] / 32),
-                        -1,
-                    )  # hw
-                    # tokens = memory_cache['tokenized'].tokens()
-                    evaluator.save(
-                        weights,
-                        text_weights,
-                        spatial_weights,
-                        outputs["pred_sted"],
-                        image_ids,
-                        video_ids,
-                    )
+
             elif isinstance(evaluator, HCSTVGEvaluator):
                 evaluator.update(hcstvg_res)
                 evaluator.video_update(hcstvg_video_res)

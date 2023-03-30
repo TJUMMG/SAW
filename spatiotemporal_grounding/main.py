@@ -23,21 +23,23 @@ import time
 from torch.utils.tensorboard import SummaryWriter
 import datetime
 
+
 def get_args_parser():
-    parser = argparse.ArgumentParser("Set TubeDETR", add_help=False)
-    parser.add_argument("--run_name", default="", type=str)
+    parser = argparse.ArgumentParser("Set SAW", add_help=False)
 
     # Dataset specific
-    parser.add_argument("--dataset_config", default='config/hcstvg.json')
+    parser.add_argument("--dataset_config", default=None, required=True)
     parser.add_argument(
         "--combine_datasets",
+        nargs="+",
         help="List of datasets to combine for training",
-        default=['hcstvg'],
+        required=True,
     )
     parser.add_argument(
         "--combine_datasets_val",
+        nargs="+",
         help="List of datasets to combine for eval",
-        default=['hcstvg'],
+        required=True,
     )
     parser.add_argument(
         "--v2",
@@ -50,7 +52,7 @@ def get_args_parser():
     )
 
     # Training hyper-parameters
-    parser.add_argument("--lr", default=5e-5, type=float)
+    parser.add_argument("--lr", default=1e-4, type=float)
     parser.add_argument("--lr_backbone", default=1e-5, type=float)
     parser.add_argument("--text_encoder_lr", default=5e-5, type=float)
     parser.add_argument("--batch_size", default=1, type=int)
@@ -73,12 +75,13 @@ def get_args_parser():
         type=int,
         help='do evaluation every "eval_skip" epochs',
     )
-                                                                                                                                   
+
     parser.add_argument(
         "--schedule",
         default="linear_with_warmup",
         type=str,
-        choices=("step", "multistep", "linear_with_warmup", "all_linear_with_warmup"),
+        choices=("step", "multistep", "linear_with_warmup",
+                 "all_linear_with_warmup"),
     )
     parser.add_argument("--ema", action="store_true")
     parser.add_argument("--ema_decay", type=float, default=0.9998)
@@ -113,7 +116,7 @@ def get_args_parser():
         "--backbone",
         default="resnet101",
         type=str,
-        choices=['resnet101', 'resnet50', 'deeplab_resnet50', 'deeplab_resnet101'],
+        choices=['resnet101', 'resnet50'],
         help="Name of the convolutional backbone to use such as resnet50 resnet101 timm_tf_efficientnet_b3_ns",
     )
     parser.add_argument(
@@ -136,7 +139,7 @@ def get_args_parser():
     )
     parser.add_argument(
         "--dim_feedforward",
-        default=128,
+        default=256,
         type=int,
         help="Intermediate size of the feedforward layers in the transformer blocks",
     )
@@ -162,7 +165,7 @@ def get_args_parser():
     )
     parser.add_argument(
         "--temporal_window_width",
-        default=[6, 12, 24, 36, 48, 72],
+        default=[6, 12, 24, 36, 48, 72, 96],
         type=list
     )
     parser.add_argument(
@@ -176,38 +179,7 @@ def get_args_parser():
         type=float
     )
 
-    parser.add_argument(
-        "--num_queries",
-        default=1,
-        type=int,
-        help="Number of object query slots per image",
-    )
-    parser.add_argument(
-        "--no_pass_pos_and_query",
-        dest="pass_pos_and_query",
-        action="store_false",
-        help="Disables passing the positional encodings to each attention layers",
-    )
-
     # Loss
-    parser.add_argument(
-        "--no_aux_loss",
-        dest="aux_loss",
-        action="store_false",
-        help="Disables auxiliary decoding losses (loss at each layer)",
-    )
-    parser.add_argument(
-        "--sigma",
-        type=int,
-        default=1,
-        help="standard deviation for the quantized gaussian law used for the kullback leibler divergence loss",
-    )
-    parser.add_argument(
-        "--no_guided_attn",
-        dest="guided_attn",
-        action="store_false",
-        help="whether to use the guided attention loss",
-    )
     parser.add_argument(
         "--sted",
         default=True,
@@ -243,7 +215,8 @@ def get_args_parser():
     parser.add_argument(
         "--start-epoch", default=0, type=int, metavar="N", help="start epoch"
     )
-    parser.add_argument("--eval", action="store_true", help="Only run evaluation")
+    parser.add_argument("--eval", action="store_true",
+                        help="Only run evaluation")
     parser.add_argument("--num_workers", default=3, type=int)
 
     # Distributed training parameters
@@ -270,7 +243,8 @@ def get_args_parser():
         default=100,
         help="maximum number of frames used by the model - may it differ from video_max_len, the model ensembles start-end probability predictions at eval time",
     )
-    parser.add_argument("--stride", type=int, default=0, help="temporal stride k")
+    parser.add_argument("--stride", type=int, default=0,
+                        help="temporal stride k")
     parser.add_argument(
         "--fps",
         type=int,
@@ -282,55 +256,8 @@ def get_args_parser():
         action="store_true",
         help="whether to use random temporal cropping during training",
     )
-
-    # Baselines
-    parser.add_argument(
-        "--learn_time_embed",
-        action="store_true",
-        help="whether to learn time embeddings or use frozen sinusoidal ones",
-    )
-    parser.add_argument(
-        "--no_time_embed",
-        action="store_true",
-        help="whether to deactivate the time encodings or not",
-    )
-    parser.add_argument(
-        "--no_tsa",
-        action="store_true",
-        help="whether to deactivate the temporal self-attention in the decoder",
-    )
-    parser.add_argument(
-        "--rd_init_tsa",
-        action="store_true",
-        help="whether to randomly initialize the temporal self-attention in the decoder",
-    )
-
-    parser.add_argument(
-        "--caption_example", default="", type=str, help="caption example for STVG demo"
-    )
-    parser.add_argument(
-        "--video_example",
-        default="",
-        type=str,
-        help="path to a video example for STVG demo",
-    )
-    parser.add_argument(
-        "--start_example",
-        default=-1,
-        type=int,
-        help="potential start (seconds) for STVG demo, =0s if <0",
-    )
-    parser.add_argument(
-        "--end_example",
-        default=-1,
-        type=int,
-        help="potential start (seconds) for STVG demo, =end of the video if <0",
-    )
-    parser.add_argument(
-        "--port", default=80, type=int, help="port for the STVG online demo"
-    )
-
     return parser
+
 
 def main(args):
     dist.init_distributed_mode(args)
@@ -363,7 +290,8 @@ def main(args):
             model, device_ids=[args.gpu], find_unused_parameters=True
         )
         model_without_ddp = model.module
-    n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    n_parameters = sum(p.numel()
+                       for p in model.parameters() if p.requires_grad)
     print("number of params:", n_parameters)
 
     # Set up optimizers
@@ -422,7 +350,8 @@ def main(args):
                 "Splitting the training set into {args.epoch_chunks} of size approximately "
                 f" {len(dataset_train) // args.epoch_chunks}"
             )
-            chunks = torch.chunk(torch.arange(len(dataset_train)), args.epoch_chunks)
+            chunks = torch.chunk(torch.arange(
+                len(dataset_train)), args.epoch_chunks)
             datasets = [
                 torch.utils.data.Subset(dataset_train, chunk.tolist())
                 for chunk in chunks
@@ -430,7 +359,8 @@ def main(args):
             if args.distributed:
                 samplers_train = [DistributedSampler(ds) for ds in datasets]
             else:
-                samplers_train = [torch.utils.data.RandomSampler(ds) for ds in datasets]
+                samplers_train = [
+                    torch.utils.data.RandomSampler(ds) for ds in datasets]
 
             batch_samplers_train = [
                 torch.utils.data.BatchSampler(
@@ -496,7 +426,8 @@ def main(args):
             num_workers=args.num_workers,
         )
         val_tuples.append(
-            Val_all(dataset_name=dset_name, dataloader=dataloader, evaluator_list=None)
+            Val_all(dataset_name=dset_name,
+                    dataloader=dataloader, evaluator_list=None)
         )
 
     # Used for resuming training from the checkpoint of a model. Used when training times-out or is pre-empted.
@@ -527,7 +458,7 @@ def main(args):
             evaluator_list.append(
                 VidSTGEvaluator(
                     args.vidstg_ann_path,
-                    "test" if args.test else "val",
+                    "test",
                     iou_thresholds=[0.3, 0.5],
                     fps=args.fps,
                     video_max_len=args.video_max_len,
@@ -539,7 +470,7 @@ def main(args):
             evaluator_list.append(
                 HCSTVGEvaluator(
                     args.hcstvg_ann_path,
-                   "val",  # no val set in v1, no test set in v2
+                    "val",  # no val set in v1, no test set in v2
                     iou_thresholds=[0.3, 0.5],
                     fps=args.fps,
                     video_max_len=args.video_max_len,
@@ -584,7 +515,8 @@ def main(args):
         }
         if args.output_dir and dist.is_main_process():
             json.dump(
-                log_stats, open(os.path.join(args.output_dir, "log_stats.json"), "w")
+                log_stats, open(os.path.join(
+                    args.output_dir, "log_stats.json"), "w")
             )
         return
 
@@ -595,7 +527,8 @@ def main(args):
     for epoch in range(args.start_epoch, args.epochs):
         if args.epoch_chunks > 0:
             sampler_train = samplers_train[epoch % len(samplers_train)]
-            data_loader_train = data_loaders_train[epoch % len(data_loaders_train)]
+            data_loader_train = data_loaders_train[epoch % len(
+                data_loaders_train)]
             print(
                 f"Starting epoch {epoch // len(data_loaders_train)}, sub_epoch {epoch % len(data_loaders_train)}"
             )
@@ -614,8 +547,7 @@ def main(args):
             args=args,
             max_norm=args.clip_max_norm,
             model_ema=model_ema,
-            writer=writer,
-            postprocessors=postprocessors
+            writer=writer
         )
         if args.output_dir:
             checkpoint_paths = [output_dir / "checkpoint.pth"]
@@ -625,7 +557,8 @@ def main(args):
                 or (epoch + 1) % 2 == 0
                 or (args.combine_datasets_val[0] == "vidstg")
             ):
-                checkpoint_paths.append(output_dir / f"checkpoint{epoch:04}.pth")
+                checkpoint_paths.append(
+                    output_dir / f"checkpoint{epoch:04}.pth")
             for checkpoint_path in checkpoint_paths:
                 dist.save_on_master(
                     {
@@ -657,7 +590,8 @@ def main(args):
                     args=args,
                 )
                 test_stats.update(
-                    {item.dataset_name + "_" + k: v for k, v in curr_test_stats.items()}
+                    {item.dataset_name + "_" + k: v for k,
+                        v in curr_test_stats.items()}
                 )
         else:
             test_stats = {}
@@ -678,6 +612,7 @@ def main(args):
     print("Training time {}".format(total_time_str))
     if writer is not None:
         writer.close()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
