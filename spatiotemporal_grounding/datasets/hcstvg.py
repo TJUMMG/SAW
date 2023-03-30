@@ -56,7 +56,8 @@ class VideoModulatedSTGrounding(Dataset):
             assert sampling_rate <= 1  # downsampling at fps
             start_frame = 0 if self.tmp_loc else video["tube_start_frame"]
             end_frame = (
-                video_num_images - 1 if self.tmp_loc else video["tube_end_frame"]
+                video_num_images -
+                1 if self.tmp_loc else video["tube_end_frame"]
             )
             frame_ids = [start_frame]
             for frame_id in range(start_frame, end_frame):
@@ -98,10 +99,11 @@ class VideoModulatedSTGrounding(Dataset):
         clip_end = video["frame_count"] - 1
 
         # ffmpeg decoding
-        vid_path = os.path.join(self.vid_folder, "video", video["video_path"])
+        vid_path = os.path.join(self.vid_folder, video["video_path"])
         ss = 0
         t = 20
-        cmd = ffmpeg.input(vid_path, ss=ss, t=t).filter("fps", fps=len(frame_ids) / t)
+        cmd = ffmpeg.input(vid_path, ss=ss, t=t).filter(
+            "fps", fps=len(frame_ids) / t)
         out, _ = cmd.output("pipe:", format="rawvideo", pix_fmt="rgb24").run(
             capture_stdout=True, quiet=True
         )
@@ -118,8 +120,9 @@ class VideoModulatedSTGrounding(Dataset):
                 bbox = trajectory[
                     img_id - video["tube_start_frame"]
                 ]  # dictionary with bbox [left, top, width, height] key
-                anns = {"bbox": bbox}
-                anns = [anns]
+                # anns = {"bbox": bbox}
+                # anns = [anns]
+                anns = [bbox]
                 inter_idx.append(i_img)
             else:
                 anns = []
@@ -148,7 +151,8 @@ class VideoModulatedSTGrounding(Dataset):
             if p > 0.5:  # random crop
                 # list possible start indexes
                 if inter_idx:
-                    starts_list = [i for i in range(len(frame_ids)) if i < inter_idx[0]]
+                    starts_list = [i for i in range(
+                        len(frame_ids)) if i < inter_idx[0]]
                 else:
                     starts_list = [i for i in range(len(frame_ids))]
 
@@ -160,9 +164,11 @@ class VideoModulatedSTGrounding(Dataset):
 
                 # list possible end indexes
                 if inter_idx:
-                    ends_list = [i for i in range(len(frame_ids)) if i > inter_idx[-1]]
+                    ends_list = [i for i in range(
+                        len(frame_ids)) if i > inter_idx[-1]]
                 else:
-                    ends_list = [i for i in range(len(frame_ids)) if i > new_start_idx]
+                    ends_list = [i for i in range(
+                        len(frame_ids)) if i > new_start_idx]
 
                 # sample a new end index
                 if ends_list:
@@ -178,7 +184,7 @@ class VideoModulatedSTGrounding(Dataset):
                     for i, x in enumerate(frame_ids)
                     if new_start_idx <= i <= new_end_idx
                 ]
-                images = images[:, new_start_idx : new_end_idx + 1]  # CTHW
+                images = images[:, new_start_idx: new_end_idx + 1]  # CTHW
                 targets = [
                     x
                     for i, x in enumerate(targets)
@@ -209,7 +215,8 @@ class VideoModulatedSTGrounding(Dataset):
 
             # select the end index
             new_end_idx = min(
-                new_start_idx + self.video_max_len_train - 1, len(frame_ids) - 1
+                new_start_idx + self.video_max_len_train -
+                1, len(frame_ids) - 1
             )
 
             # update everything
@@ -218,7 +225,7 @@ class VideoModulatedSTGrounding(Dataset):
             frame_ids = [
                 x for i, x in enumerate(frame_ids) if new_start_idx <= i <= new_end_idx
             ]
-            images = images[:, new_start_idx : new_end_idx + 1]  # CTHW
+            images = images[:, new_start_idx: new_end_idx + 1]  # CTHW
             targets = [
                 x for i, x in enumerate(targets) if new_start_idx <= i <= new_end_idx
             ]
@@ -248,14 +255,14 @@ def build(image_set, args):
 
     if args.test or image_set == "val":
         if not args.v2:  # only a test set
-            ann_file = Path(args.hcstvg_ann_path) / f"test_proc.json"
+            ann_file = Path(args.hcstvg_ann_path) / f"test.json"
         else:  # only a val set
-            ann_file = Path(args.hcstvg_ann_path) / f"val_v2_proc.json"
+            ann_file = Path(args.hcstvg_ann_path) / f"val.json"
     else:
         if not args.v2:
-            ann_file = Path(args.hcstvg_ann_path) / f"train_proc.json"
+            ann_file = Path(args.hcstvg_ann_path) / f"train.json"
         else:
-            ann_file = Path(args.hcstvg_ann_path) / f"train_v2_proc.json"
+            ann_file = Path(args.hcstvg_ann_path) / f"train.json"
 
     dataset = VideoModulatedSTGrounding(
         vid_dir,

@@ -31,7 +31,8 @@ class VidSTGiouEvaluator:
         :param tmp_loc: whether to evaluate temporal localization
         """
 
-        assert subset in ["train", "test", "val"], f"Wrong VidSTG subset {subset}"
+        assert subset in ["train", "test",
+                          "val"], f"Wrong VidSTG subset {subset}"
 
         self.iou_thresholds = iou_thresholds
         self.tmp_loc = tmp_loc
@@ -77,7 +78,7 @@ class VidSTGiouEvaluator:
                 if video["tube_start_frame"] <= frame_id < video["tube_end_frame"]:
                     x1, y1, w, h = self.anns["trajectories"][
                         video["original_video_id"]
-                    ][str(video["target_id"])][str(frame_id)]["bbox"]
+                    ][str(video["target_id"])][str(frame_id)]
                     x2 = x1 + w
                     y2 = y1 + h
                     self.img2box[f"{video_id}_{frame_id}"] = [[x1, y1, x2, y2]]
@@ -100,7 +101,8 @@ class VidSTGiouEvaluator:
         vid_metrics = {}
         for video_id, video_pred in video_predictions.items():
             if video_id in vid_metrics:
-                print(f"Warning, multiple predictions found for video {video_id}")
+                print(
+                    f"Warning, multiple predictions found for video {video_id}")
                 continue
             if self.tmp_loc:
                 gt_sted = self.vid2steds[video_id]
@@ -161,7 +163,8 @@ class VidSTGiouEvaluator:
                 else:
                     pred_boxes = predictions[image_id]["boxes"]
                 gt_boxes = self.img2box[image_id]
-                iou = np_box_iou(np.array(pred_boxes), np.array(gt_boxes))[0][0]
+                iou = np_box_iou(np.array(pred_boxes),
+                                 np.array(gt_boxes))[0][0]
                 frame_id = int(image_id.split("_")[1])
                 vid_metrics[video_id]["img_metrics"][image_id] = {
                     "iou": iou,
@@ -273,11 +276,13 @@ class VidSTGEvaluator(object):
             self.spatial_weights[video_id] = (
                 spatial_weights[:, :, i_vid, :].mean(0).detach().cpu().tolist()
             )
-            self.pred_sted[video_id] = pred_sted[i_vid, :, :].detach().cpu().tolist()
+            self.pred_sted[video_id] = pred_sted[i_vid,
+                                                 :, :].detach().cpu().tolist()
 
     def synchronize_between_processes(self):
         all_predictions = dist.all_gather(self.predictions)
-        self.predictions = reduce(lambda a, b: a.update(b) or a, all_predictions, {})
+        self.predictions = reduce(
+            lambda a, b: a.update(b) or a, all_predictions, {})
         all_video_predictions = dist.all_gather(self.video_predictions)
         self.video_predictions = reduce(
             lambda a, b: a.update(b) or a, all_video_predictions, {}
@@ -298,7 +303,8 @@ class VidSTGEvaluator(object):
             )
 
             all_pred_sted = dist.all_gather(self.pred_sted)
-            self.pred_sted = reduce(lambda a, b: a.update(b) or a, all_pred_sted, {})
+            self.pred_sted = reduce(
+                lambda a, b: a.update(b) or a, all_pred_sted, {})
 
     def summarize(self):
         if dist.is_main_process():
@@ -330,7 +336,8 @@ class VidSTGEvaluator(object):
                 counter[qtype] += 1
             for category in categories:  # average results per category
                 for key in metrics[qtype]:
-                    metrics[category][key] = metrics[category][key] / counter[category]
+                    metrics[category][key] = metrics[category][key] / \
+                        counter[category]
                     print(f"{category} {key}: {metrics[category][key]:.4f}")
             out = {
                 f"{qtype}_{name}": metrics[qtype][name]

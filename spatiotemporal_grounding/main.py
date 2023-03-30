@@ -178,6 +178,12 @@ def get_args_parser():
         default=0.8,
         type=float
     )
+    parser.add_argument(
+        "--temporal_decoder_type",
+        default='anchor',
+        type=str,
+        choices=['anchor', 'regression']
+    )
 
     # Loss
     parser.add_argument(
@@ -191,7 +197,10 @@ def get_args_parser():
     parser.add_argument("--loss_spatial_wh", default=0.1, type=float)
     parser.add_argument("--loss_spatial_map", default=0.1, type=float)
     parser.add_argument("--loss_temporal_cls", default=1, type=float)
-    parser.add_argument("--loss_temporal_reg", default=0.01, type=float)
+    parser.add_argument("--loss_temporal_align", default=0.01, type=float)
+    parser.add_argument("--loss_temporal_score", default=1, type=float)
+    parser.add_argument("--loss_temporal_reg", default=0.5, type=float)
+    parser.add_argument("--loss_temporal_iou", default=0.5, type=float)
 
     # Run specific
     parser.add_argument(

@@ -134,7 +134,8 @@ def resize(clip, targets, size, max_size=None):
             min_original_size = float(min((w, h)))
             max_original_size = float(max((w, h)))
             if max_original_size / min_original_size * size > max_size:
-                size = int(round(max_size * min_original_size / max_original_size))
+                size = int(
+                    round(max_size * min_original_size / max_original_size))
 
         if (w <= h and w == size) or (h <= w and h == size):
             return (h, w)
@@ -164,7 +165,8 @@ def resize(clip, targets, size, max_size=None):
     size = get_size(
         s, size, max_size
     )  # apply for first image, all images of the same clip have the same h w
-    rescaled_clip = resize_clip(clip, size)  # torch video transforms functional
+    # torch video transforms functional
+    rescaled_clip = resize_clip(clip, size)
     if isinstance(clip[0], np.ndarray):
         h2, w2, c2 = list(rescaled_clip[0].shape)
         s2 = [w2, h2]
@@ -176,7 +178,8 @@ def resize(clip, targets, size, max_size=None):
     if targets is None:
         return rescaled_clip, None
 
-    ratios = tuple(float(s_mod) / float(s_orig) for s_mod, s_orig in zip(s2, s))
+    ratios = tuple(float(s_mod) / float(s_orig)
+                   for s_mod, s_orig in zip(s2, s))
     ratio_width, ratio_height = ratios
 
     targets = targets.copy()
@@ -245,9 +248,11 @@ def crop(clip, targets, region):
             boxes = targets[i_tgt]["boxes"]
             max_size = torch.as_tensor([w, h], dtype=torch.float32)
             cropped_boxes = boxes - torch.as_tensor([j, i, j, i])
-            cropped_boxes = torch.min(cropped_boxes.reshape(-1, 2, 2), max_size)
+            cropped_boxes = torch.min(
+                cropped_boxes.reshape(-1, 2, 2), max_size)
             cropped_boxes = cropped_boxes.clamp(min=0)
-            area = (cropped_boxes[:, 1, :] - cropped_boxes[:, 0, :]).prod(dim=1)
+            area = (cropped_boxes[:, 1, :] -
+                    cropped_boxes[:, 0, :]).prod(dim=1)
             targets[i_tgt]["boxes"] = cropped_boxes.reshape(-1, 4)
             targets[i_tgt]["area"] = area
         fields.append("boxes")
@@ -255,7 +260,8 @@ def crop(clip, targets, region):
     if "masks" in targets[0]:
         # FIXME should we update the area here if there are no boxes?
         for i_tgt in range(len(targets)):  # apply for every image of the clip
-            targets[i_tgt]["masks"] = targets[i_tgt]["masks"][:, i : i + h, j : j + w]
+            targets[i_tgt]["masks"] = targets[i_tgt]["masks"][:,
+                                                              i: i + h, j: j + w]
         fields.append("masks")
 
     # remove elements for which the boxes or masks that have zero area
@@ -265,7 +271,8 @@ def crop(clip, targets, region):
         for i_tgt in range(len(targets)):
             if "boxes" in targets[0]:
                 cropped_boxes = targets[i_tgt]["boxes"].reshape(-1, 2, 2)
-                keep = torch.all(cropped_boxes[:, 1, :] > cropped_boxes[:, 0, :], dim=1)
+                keep = torch.all(
+                    cropped_boxes[:, 1, :] > cropped_boxes[:, 0, :], dim=1)
             else:
                 keep = targets[i_tgt]["masks"].flatten(1).any(1)
 
@@ -282,8 +289,10 @@ class RandomSizeCrop(object):
         self.respect_boxes = respect_boxes  # if True we can't crop a box out
 
     def __call__(self, clip, targets: dict):
-        orig_targets = copy.deepcopy(targets)  # used to conserve ALL BOXES ANYWAY
-        init_boxes = sum(len(targets[i_tgt]["boxes"]) for i_tgt in range(len(targets)))
+        # used to conserve ALL BOXES ANYWAY
+        orig_targets = copy.deepcopy(targets)
+        init_boxes = sum(len(targets[i_tgt]["boxes"])
+                         for i_tgt in range(len(targets)))
         max_patience = 100  # TODO: maybe it is gonna requery lots of time with a clip than an image as it involves more boxes
         for i_patience in range(max_patience):
             if isinstance(clip[0], PIL.Image.Image):
@@ -296,7 +305,6 @@ class RandomSizeCrop(object):
                 raise NotImplementedError
             tw = random.randint(self.min_size, min(w, self.max_size))
             th = random.randint(self.min_size, min(h, self.max_size))
-            # region = T.RandomCrop.get_params(clip[0], [th, tw]) # h w sizes are the same for all images of the clip; we can just get parameters for the first image
 
             if h + 1 < th or w + 1 < tw:
                 raise ValueError(
@@ -414,7 +422,8 @@ def make_video_transforms(image_set, cautious, resolution=224):
                     Compose(
                         [
                             RandomResize(resizes),
-                            RandomSizeCrop(crop, max_size, respect_boxes=cautious),
+                            RandomSizeCrop(
+                                crop, max_size, respect_boxes=cautious),
                             RandomResize(scales, max_size=max_size),
                         ]
                     ),
@@ -434,14 +443,14 @@ def make_video_transforms(image_set, cautious, resolution=224):
     raise ValueError(f"unknown {image_set}")
 
 
-def prepare(w, h, anno):
+def prepare(w, h, boxes):
     """
     :param w: pixel width of the frame
     :param h: pixel height of the frame
     :param anno: dictionary with key bbox
     :return: dictionary with preprocessed keys tensors boxes and orig_size
     """
-    boxes = [obj["bbox"] for obj in anno]
+    # boxes = [obj["bbox"] for obj in anno]
     # guard against no boxes via resizing
     boxes = torch.as_tensor(boxes, dtype=torch.float32).reshape(-1, 4)
     boxes[:, 2:] += boxes[:, :2]

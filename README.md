@@ -130,13 +130,13 @@ python main.py --combine_datasets=vidstg --combine_datasets_val=vidstg --dataset
 To evaluate on HC-STVG dataset, run:
 
 ```
-python main.py --combine_datasets=hcstvg --combine_datasets_val=hcstvg --dataset_config config/hcstvg.json --output-dir=hcstvg_result --eval
+python main.py --combine_datasets=hcstvg --combine_datasets_val=hcstvg --dataset_config config/hcstvg.json --output-dir=hcstvg_result --eval --resume=$CHECKPOINT_PATH$
 ```
 
 To evaluate on VidSTG dataset, run
 
 ```
-python main.py --combine_datasets=vidstg --combine_datasets_val=vidstg --dataset_config config/vidstg.json --output-dir=vidstg_result --eval
+python main.py --combine_datasets=vidstg --combine_datasets_val=vidstg --dataset_config config/vidstg.json --output-dir=vidstg_result --eval --resume=$CHECKPOINT_PATH$
 ```
 
 ## Citation

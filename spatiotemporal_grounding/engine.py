@@ -66,7 +66,7 @@ def train_one_epoch(
 
         targets = targets_to(targets, device)
 
-        outputs = model(samples, captions)
+        outputs = model(samples, captions, durations)
 
         # only keep box predictions in the annotated moment
         max_duration = max(durations)
@@ -83,76 +83,78 @@ def train_one_epoch(
                         ) if len(targets[elt]['boxes'])
                     ]
                 )
-        keep = torch.tensor(keep_list).long().to(outputs["spatial_map"].device)
+        if len(keep_list) > 0:
+            keep = torch.tensor(keep_list).long().to(
+                outputs["spatial_map"].device)
 
-        outputs["spatial_map"] = outputs["spatial_map"][keep]
-        outputs["spatial_wh"] = outputs["spatial_wh"][keep]
-        outputs['maps'] = [m[keep] for m in outputs['maps']]
-        samples_viz = samples.tensors[keep]
+            outputs["spatial_map"] = outputs["spatial_map"][keep]
+            outputs["spatial_wh"] = outputs["spatial_wh"][keep]
+            outputs['maps'] = [m[keep] for m in outputs['maps']]
 
-        b = len(durations)
-        targets = [x for x in targets if len(x["boxes"])]
-        assert len(targets) == len(outputs["spatial_map"]) == len(outputs["spatial_wh"]), (
-            len(targets),
-            len(outputs["spatial_map"]),
-            len(outputs["spatial_wh"])
-        )
+            b = len(durations)
+            targets = [x for x in targets if len(x["boxes"])]
+            assert len(targets) == len(outputs["spatial_map"]) == len(outputs["spatial_wh"]), (
+                len(targets),
+                len(outputs["spatial_map"]),
+                len(outputs["spatial_wh"])
+            )
 
-        # compute losses
-        loss_dict = {}
-        if criterion is not None:
-            loss_dict_cur, gaussian_gt = criterion(
-                outputs, durations, inter_idx, targets)
-            loss_dict.update(loss_dict_cur)
+            # compute losses
+            loss_dict = {}
+            if criterion is not None:
+                loss_dict_cur, gaussian_gt = criterion(
+                    outputs, durations, inter_idx, targets)
+                loss_dict.update(loss_dict_cur)
 
-        losses = sum(
-            loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict
-        )
+            losses = sum(
+                loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict
+            )
 
-        # reduce losses over all GPUs for logging purposes
-        loss_dict_reduced = dist.reduce_dict(loss_dict)
-        loss_dict_reduced_unscaled = {
-            f"{k}_unscaled": v for k, v in loss_dict_reduced.items()
-        }
-        loss_dict_reduced_scaled = {
-            k: v * weight_dict[k]
-            for k, v in loss_dict_reduced.items()
-            if k in weight_dict
-        }
-        losses_reduced_scaled = sum(loss_dict_reduced_scaled.values())
+            # reduce losses over all GPUs for logging purposes
+            loss_dict_reduced = dist.reduce_dict(loss_dict)
+            loss_dict_reduced_unscaled = {
+                f"{k}_unscaled": v for k, v in loss_dict_reduced.items()
+            }
+            loss_dict_reduced_scaled = {
+                k: v * weight_dict[k]
+                for k, v in loss_dict_reduced.items()
+                if k in weight_dict
+            }
+            losses_reduced_scaled = sum(loss_dict_reduced_scaled.values())
 
-        loss_value = losses_reduced_scaled.item()
+            loss_value = losses_reduced_scaled.item()
 
-        if not math.isfinite(loss_value):
-            print("Loss is {}, stopping training".format(loss_value))
-            print(loss_dict_reduced)
-            sys.exit(1)
+            if not math.isfinite(loss_value):
+                print("Loss is {}, stopping training".format(loss_value))
+                print(loss_dict_reduced)
+                sys.exit(1)
 
-        optimizer.zero_grad()
-        losses.backward()
-        if max_norm > 0:
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
-        optimizer.step()
+            optimizer.zero_grad()
+            losses.backward()
+            if max_norm > 0:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
+            optimizer.step()
 
-        adjust_learning_rate(
-            optimizer,
-            epoch,
-            curr_step,
-            num_training_steps=num_training_steps,
-            args=args,
-        )
-        if model_ema is not None:
-            update_ema(model, model_ema, args.ema_decay)
+            adjust_learning_rate(
+                optimizer,
+                epoch,
+                curr_step,
+                num_training_steps=num_training_steps,
+                args=args,
+            )
+            if model_ema is not None:
+                update_ema(model, model_ema, args.ema_decay)
 
-        metric_logger.update(
-            loss=loss_value, **loss_dict_reduced_scaled, **loss_dict_reduced_unscaled
-        )
-        if writer is not None and dist.is_main_process() and i % 100 == 0:
-            for k in loss_dict_reduced_unscaled:
-                writer.add_scalar(f"{k}", metric_logger.meters[k].avg, i)
-        metric_logger.update(lr=optimizer.param_groups[0]["lr"])
-        metric_logger.update(lr_backbone=optimizer.param_groups[1]["lr"])
-        metric_logger.update(lr_text_encoder=optimizer.param_groups[2]["lr"])
+            metric_logger.update(
+                loss=loss_value, **loss_dict_reduced_scaled, **loss_dict_reduced_unscaled
+            )
+            if writer is not None and dist.is_main_process() and i % 100 == 0:
+                for k in loss_dict_reduced_unscaled:
+                    writer.add_scalar(f"{k}", metric_logger.meters[k].avg, i)
+            metric_logger.update(lr=optimizer.param_groups[0]["lr"])
+            metric_logger.update(lr_backbone=optimizer.param_groups[1]["lr"])
+            metric_logger.update(
+                lr_text_encoder=optimizer.param_groups[2]["lr"])
 
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
@@ -189,7 +191,7 @@ def evaluate(
 
         targets = targets_to(targets, device)
 
-        outputs = model(samples, captions)
+        outputs = model(samples, captions, durations)
 
         # only keep box predictions in the annotated moment
         max_duration = max(durations)
@@ -326,7 +328,40 @@ def evaluate(
             if isinstance(evaluator, VidSTGEvaluator):
                 evaluator.update(vidstg_res)
                 evaluator.video_update(vidstg_video_res)
-
+                if args.test:
+                    tsa_weights = [
+                        outputs["aux_outputs"][i_aux]["weights"]
+                        for i_aux in range(len(outputs["aux_outputs"]))
+                    ]
+                    tsa_weights.append(outputs["weights"])
+                    weights = torch.stack(tsa_weights)
+                    ca_weights = [
+                        outputs["aux_outputs"][i_aux]["ca_weights"]
+                        for i_aux in range(len(outputs["aux_outputs"]))
+                    ]
+                    ca_weights.append(outputs["ca_weights"])
+                    ca_weights = torch.stack(ca_weights)
+                    text_weights = ca_weights[
+                        ..., -len(memory_cache["text_memory_resized"]):
+                    ]
+                    spatial_weights = ca_weights[
+                        ..., : -len(memory_cache["text_memory_resized"])
+                    ].reshape(
+                        ca_weights.shape[0],
+                        ca_weights.shape[1],
+                        ca_weights.shape[2],
+                        math.ceil(samples.tensors.shape[2] / 32),
+                        -1,
+                    )  # hw
+                    # tokens = memory_cache['tokenized'].tokens()
+                    evaluator.save(
+                        weights,
+                        text_weights,
+                        spatial_weights,
+                        outputs["pred_sted"],
+                        image_ids,
+                        video_ids,
+                    )
             elif isinstance(evaluator, HCSTVGEvaluator):
                 evaluator.update(hcstvg_res)
                 evaluator.video_update(hcstvg_video_res)

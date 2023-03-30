@@ -33,7 +33,8 @@ class HCSTVGGiouEvaluator:
         :param tmp_loc: whether to evaluate temporal localization
         """
 
-        assert subset in ["train", "val", "test"], f"Wrong HC-STVG subset {subset}"
+        assert subset in ["train", "val",
+                          "test"], f"Wrong HC-STVG subset {subset}"
 
         self.iou_thresholds = iou_thresholds
         self.tmp_loc = tmp_loc
@@ -44,9 +45,9 @@ class HCSTVGGiouEvaluator:
         if not v2:
             if subset == 'val':
                 subset = 'test'
-            path = hcstvg_path / f"{subset}_proc.json"
+            path = hcstvg_path / f"{subset}.json"
         else:
-            path = hcstvg_path / f"{subset}_v2_proc.json"
+            path = hcstvg_path / f"{subset}.json"
 
         self.anns = json.load(open(path, "r"))
         self.vid2imgids = (
@@ -62,7 +63,8 @@ class HCSTVGGiouEvaluator:
             assert sampling_rate <= 1  # downsampling at fps
             start_frame = 0 if self.tmp_loc else video["tube_start_frame"]
             end_frame = (
-                video_num_images - 1 if self.tmp_loc else video["tube_end_frame"]
+                video_num_images -
+                1 if self.tmp_loc else video["tube_end_frame"]
             )
             frame_ids = [start_frame]
             for frame_id in range(start_frame, end_frame):
@@ -107,7 +109,8 @@ class HCSTVGGiouEvaluator:
         vid_metrics = {}
         for video_id, video_pred in video_predictions.items():
             if video_id in vid_metrics:
-                print(f"Warning, multiple predictions found for video {video_id}")
+                print(
+                    f"Warning, multiple predictions found for video {video_id}")
                 continue
             if self.tmp_loc:
                 gt_sted = self.vid2steds[video_id]
@@ -166,7 +169,8 @@ class HCSTVGGiouEvaluator:
                     raise RuntimeError(f"No prediction for frame {image_id}")
                 gt_boxes = self.img2box[image_id]
                 pred_boxes = predictions[image_id]["boxes"]
-                iou = np_box_iou(np.array(pred_boxes), np.array(gt_boxes))[0][0]
+                iou = np_box_iou(np.array(pred_boxes),
+                                 np.array(gt_boxes))[0][0]
                 frame_id = int(image_id.split("_")[1])
                 vid_metrics[video_id]["img_metrics"][image_id] = {
                     "iou": iou,
@@ -195,7 +199,8 @@ class HCSTVGGiouEvaluator:
                 if gt_viou > thresh:
                     gt_recalls[thresh] += 1
             vid_metrics[video_id].update(
-                {f"viou@{thresh}": recalls[thresh] for thresh in self.iou_thresholds}
+                {f"viou@{thresh}": recalls[thresh]
+                    for thresh in self.iou_thresholds}
             )
             vid_metrics[video_id].update(
                 {
@@ -257,7 +262,8 @@ class HCSTVGEvaluator(object):
 
     def synchronize_between_processes(self):
         all_predictions = dist.all_gather(self.predictions)
-        self.predictions = reduce(lambda a, b: a.update(b) or a, all_predictions, {})
+        self.predictions = reduce(
+            lambda a, b: a.update(b) or a, all_predictions, {})
         all_video_predictions = dist.all_gather(self.video_predictions)
         self.video_predictions = reduce(
             lambda a, b: a.update(b) or a, all_video_predictions, {}
