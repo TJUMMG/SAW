@@ -6,7 +6,7 @@ from torch.utils import data
 import torch.nn.functional as F
 from tqdm import tqdm
 import numpy as np
-from utils.utils import CountMeter, compute_IoU_recall, iou_tan
+from utils.utils import CountMeter, compute_IoU_recall
 import collections
 
 
@@ -30,7 +30,8 @@ class Tester(object):
         print('loading checkpoint ....')
         checkpoint = torch.load(self.checkpoint)
         self.model.module.load_state_dict(checkpoint['state_dict'])
-        loader = data.DataLoader(dataset, self.config['batch_size'], False, num_workers=8)
+        loader = data.DataLoader(
+            dataset, self.config['batch_size'], False, num_workers=8)
         meters_5 = collections.defaultdict(lambda: CountMeter())
         recall_metrics = (1, 5)
         iou_metrics = (0.1, 0.3, 0.5, 0.7)
@@ -49,7 +50,7 @@ class Tester(object):
 
             with torch.no_grad():
                 predict_boxes, score = self.model(fea, embedding, embedding_length, score,
-                                                     label, score_mask, score_nm, proposals, adj_mat, 'test')
+                                                  label, score_mask, score_nm, proposals, adj_mat, 'test')
                 predict_boxes_old = np.round(
                     predict_boxes.cpu().numpy()).astype(np.int32)
                 for k in range(predict_boxes.shape[0]):
@@ -69,7 +70,6 @@ class Tester(object):
                     topn_IoU_matric = compute_IoU_recall(
                         predict_flatten, predict_boxes, gt_boxes)
                     meters_5['mIoU'].update(topn_IoU_matric, 1)
-
 
         IoU_threshs = [0.1, 0.3, 0.5, 0.7]
         top_n_list = [1, 5]

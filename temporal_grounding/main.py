@@ -4,17 +4,19 @@ import json
 import numpy as np
 import random
 import torch
-from dataset.dataset import MyDataset
+from dataset import MyDataset
 from model.model import Model
 import torch.nn as nn
 from utils.trainer import Trainer
 from utils.tester import Tester
-# from utils.tester import Tester
 
 
 def main(args):
     with open(args.json_file, 'r') as f:
         config = json.load(f)
+    config['mode'] = args.mode
+    if args.checkpoint is not None:
+        config['checkpoint'] = args.checkpoint
 
     is_cuda = config['cuda']
     if is_cuda:
@@ -51,8 +53,15 @@ def main(args):
 
 
 if __name__ == '__main__':
+    # python main.py --json_file=json/config_Charades-STA_I3D_regression.json --mode=train
+    # python main.py --json_file=json/config_Charades-STA_I3D_anchor.json --mode=train
+    # python main.py --json_file=json/config_ActivityNet_C3D_regression.json --mode=train
+    # python main.py --json_file=json/config_ActivityNet_C3D_anchor.json --mode=train
     parser = argparse.ArgumentParser()
     parser.add_argument('--json_file', type=str,
-                        default='json/config_Charades-STA_I3D_regression.json')
+                        default='json/config_Charades-STA_I3D_regression.json', required=True)
+    parser.add_argument('--mode', type=str,
+                        default='train', required=True, choices=['train', 'test'])
+    parser.add_argument('--checkpoint', type=str, default=None)
     args = parser.parse_args()
     main(args)

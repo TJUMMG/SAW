@@ -1,11 +1,10 @@
 {
-  "mode": "train",
   "cuda": true,
   "gpu_id": "0",
   "seed": 1,
   "training_datasets": "Charades-STA",
   "testing_datasets": "Charades-STA",
-  "datasets_root": "/media/wwk/HDD11/dataset/video_grounding",
+  "datasets_root": "",
   "video_fea_type": "I3D",
   "window_width": [
     6,
@@ -17,21 +16,12 @@
   "segment_num": 75,
   "embedding_type": "glove_6B_300",
   "embedding_length": 20,
-  "final_anchor_num": 1,
-  "pooling_counts": [
-    15,
-    8,
-    8
-  ],
   "decoder_type": "anchor_based",
   "dropout": 0.1,
   "embedding_dim": 300,
   "video_fea_dim": 1024,
   "attention_dim": 256,
   "MLP_dim": 256,
-  "scales": [
-    1
-  ],
   "prenorm": false,
   "padding_type": "circle",
   "layer_num": 10,
@@ -42,9 +32,6 @@
   "gru_bidirection": true,
   "thres_score": 0.3,
   "thres_adjmat": 0.8,
-  "tan_decoder_kernel_size": 4,
-  "tan_min_iou": 0.5,
-  "tan_max_iou": 1.0,
   "resume": "",
   "batch_size": 128,
   "epochs": 20,

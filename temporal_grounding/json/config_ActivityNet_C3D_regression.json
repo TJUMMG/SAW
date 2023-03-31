@@ -1,11 +1,10 @@
 {
-    "mode": "train",
     "cuda": true,
     "gpu_id": "0",
     "seed": 1,
     "training_datasets": "ActivityNet",
     "testing_datasets": "ActivityNet",
-    "datasets_root": "/media/wwk/HDD11/dataset/video_grounding",
+    "datasets_root": "",
     "video_fea_type": "C3D",
     "window_width": [
         16,
@@ -19,21 +18,12 @@
     "segment_num": 64,
     "embedding_type": "glove_840B_300",
     "embedding_length": 40,
-    "final_anchor_num": 10,
-    "pooling_counts": [
-        7,
-        4,
-        4
-    ],
     "decoder_type": "regression",
     "dropout": 0.1,
     "embedding_dim": 300,
     "video_fea_dim": 500,
     "attention_dim": 256,
     "MLP_dim": 256,
-    "scales": [
-        1
-    ],
     "padding_type": "circle",
     "layer_num": 10,
     "prenorm": true,
@@ -42,9 +32,6 @@
     "with_mlp": true,
     "groups": 4,
     "gru_bidirection": true,
-    "tan_decoder_kernel_size": 4,
-    "tan_min_iou": 0.5,
-    "tan_max_iou": 1.0,
     "thres_score": 0.3,
     "thres_adjmat": 0.8,
     "resume": "",
@@ -66,5 +53,5 @@
     "save_iters": 5,
     "num_worker": 8,
     "test_savefold": "./result",
-    "checkpoint": "./logs/ActivityNet_regression/checkpoints/best_model.pth"
+    "checkpoint": "./logs/ActivityNet_C3D_regression/checkpoints/best_model.pth"
 }

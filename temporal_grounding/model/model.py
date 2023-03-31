@@ -2,9 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .module.attention import GlobalTextPresentation
-from .module.TCN import TCN, TCN2D, TCN0
-from .module.tanmodule import SparseMaxPool, generate_mask
-from .decoder import AnchorBasedDecoder, TANDecoder, RegressionDecoder
+from .module.RefTransformer import RefTransformer
+from .decoder import AnchorBasedDecoder, RegressionDecoder
 
 
 class TextEncoder(nn.Module):
@@ -33,39 +32,12 @@ class TextEncoder(nn.Module):
         return word_embedding
 
 
-class VideoEncoder(nn.Module):
-    def __init__(self, config):
-        self.config = config
-        super(VideoEncoder, self).__init__()
-        if config['gru_bidirection']:
-            self.backbone = nn.GRU(
-                config['video_fea_dim'], config['attention_dim'], batch_first=True, bidirectional=True)
-        else:
-            self.backbone = nn.GRU(
-                config['video_fea_dim'], config['attention_dim'], batch_first=True, bidirectional=False)
-        self.dropout0 = nn.Dropout(config['dropout'])
-        self.dropout = nn.Dropout(config['dropout'])
-
-    def forward(self, fea_video):
-        fea_video = self.dropout0(fea_video)
-        fea_video, _ = self.backbone(fea_video)
-        if self.config['gru_bidirection']:
-            fea_video = fea_video.view(
-                fea_video.shape[0], fea_video.shape[1], 2, -1)
-            fea_video = torch.mean(fea_video, dim=2)
-        fea_video = self.dropout(fea_video)
-        return fea_video
-
-
 class Model(nn.Module):
     def __init__(self, config):
 
         super(Model, self).__init__()
         self.config = config
         self.text_encoder = TextEncoder(config)
-        # self.text_encoder = nn.Linear(
-        #     config['embedding_dim'], config['attention_dim'])
-        # self.video_encoder = VideoEncoder(config)
         self.video_encoder = nn.Linear(
             config['video_fea_dim'], config['attention_dim'])
         self.global_text = GlobalTextPresentation(config['attention_dim'])
@@ -73,7 +45,7 @@ class Model(nn.Module):
             1, config['attention_dim'], config['segment_num']))
         self.prenorm = nn.LayerNorm(config['attention_dim'])
 
-        self.TCN = TCN(config)
+        self.TCN = RefTransformer(config)
         if config['decoder_type'] == 'anchor_based':
             self.decoder = AnchorBasedDecoder(config)
         elif config['decoder_type'] == 'regression':
@@ -89,11 +61,11 @@ class Model(nn.Module):
             embedding_mask[b, :, :int(embedding_length[b])] = 1
         text_feag, text_weight = self.global_text(
             text_feal, embedding_mask)  # b*1*d
-        # print(video_fea.shape)
+
         video_fea = self.video_encoder(video_fea.float())  # b*c*t
         if self.config['with_text']:
             video_fea = video_fea + text_feag
-        # video_fea = self.prenorm(video_fea).permute(0, 2, 1)
+
         video_fea = video_fea.permute(0, 2, 1)
         out_fea, weights = self.TCN(
             video_fea, text_feag, self.pos_embedding, embedding_mask)  # b*c*t

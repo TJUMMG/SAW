@@ -1,6 +1,6 @@
 # SAW
 
-The official implementation OF paper "Sequence as A Whole: A Unified Framework for Video Action Localization with Long-range Text Query"
+The official implementation OF paper "Sequence as A Whole: A Unified Framework for Video Action Localization with Long-range Text Query" \[[Paper](https://ieeexplore.ieee.org/document/10043827)\]
 
 ![](./docs/net.png)
 
@@ -71,27 +71,43 @@ run `cd temporal_grounding` for referring temporal sentence grounding task.
 The config files can be find in `./json` and the following model settings are supported
 
 ```
--config_ActivityNet_anchor.json
--config_ActivityNet_regression.json
+-config_ActivityNet_C3D_anchor.json
+-config_ActivityNet_C3D_regression.json
 -config_Charades-STA_I3D_anchor.json
--config_Charades-STA_VGG_anchor.json
 -config_Charades-STA_I3D_regression.json
+-config_Charades-STA_VGG_anchor.json
 -config_Charades-STA_VGG_regression.json
--config_TACoS_anchor.json
--config_TACoS_regression.json
+-config_TACoS_C3D_anchor.json
+-config_TACoS_C3D_regression.json
 ```
+
+Set the `"datasets_root"` in each config file to be your feature path.
 
 To train on different dataset with different grounding heads, run
 
 ```
-python main.py --json_file [json file path]
+python main.py --json_file=$JSON_FILE_PATH$ --mode=train
 ```
 
-For evaluation, set `mode='test'` in the json file and run 
+For evaluation, run 
 
 ```
-python main.py --json_file [json file path]
+python main.py --json_file=$JSON_FILE_PATH$ --mode=test --checkpoint=$CHECKPOINT_PATH$
 ```
+
+The pretrained models and their correspondance performance are shown bellow
+
+| Datasets     | Feature | Decoder    | Checkpoints |
+|--------------|---------|------------|-------------|
+| Charades-STA | I3D     | Regression        |  \[[Baidu](https://pan.baidu.com/s/1GQBkElQITd-exS1njNZrwQ) \| gj54 \]           |
+| Charades-STA | I3D     | Anchor     |    \[[Baidu](https://pan.baidu.com/s/1MXZqAEBLOzauR8cOLjo3QA) \| 5j3a \]           |
+| Charades-STA | VGG     | Regression |                \[[Baidu](https://pan.baidu.com/s/1Yacke_tkaAELzMY_ePyIhw) \| 52xf \]           |
+| Charades-STA | VGG     | Anchor     |                \[[Baidu](https://pan.baidu.com/s/1PcIZ7QEWcYnfzne1dkMsng) \| rdmx \]          |
+| ActivityNet  | C3D     | Regression |                \[[Baidu](https://pan.baidu.com/s/1zlH64seHimscTOtNry-6Ag) \| 6sbh \]            |
+| ActivityNet  | C3D     | Anchor     |              \[[Baidu](https://pan.baidu.com/s/1mi8M2wBUAqskWQQqHdmi2Q) \| ysr5 \]           |
+| TACOS        | C3D     | Regression |                \[[Baidu](https://pan.baidu.com/s/140m-9geYbktSRfP7Pa1rzA) \| iwx2 \]           |
+| TACOS        | C3D     | Anchor     |               \[[Baidu](https://pan.baidu.com/s/1dzIIb4dKQY9t-oAF-N2sLw) \| 1ube \]           |
+
 
 ## Spatiotemporal Video Grounding
 

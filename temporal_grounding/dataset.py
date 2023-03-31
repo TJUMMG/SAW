@@ -5,14 +5,12 @@ import json
 from utils.utils import *
 from tqdm import tqdm
 import torch.nn as nn
-from .generate_anchor import generate_proposals, generate_scores
 import torch
 import numpy as np
 import torchtext
 
 
 class MyDataset(data.Dataset):
-    # vocab = torchtext.vocab.pretrained_aliases["glove.840B.300d"]()
     def __init__(self, config, mode='train'):
         super(MyDataset, self).__init__()
         self.config = config
@@ -35,19 +33,18 @@ class MyDataset(data.Dataset):
             data['index'] = n
             if (data['timestamp'][1] - data['timestamp'][0]) > 0 and data['timestamp'][1] <= data['duration'] and data['timestamp'][0] <= data['duration']:
                 self.datas.append(data)
-        # self.feat_path = os.path.join(
-        #     config['datasets_root'], self.dataset, 'video_fea', '{}_{}.hdf5'.format(self.dataset, config['video_fea_type']))
-        # self.feat_path = os.path.join(
-        #     config['datasets_root'], self.dataset, 'video_fea', config['video_fea_type'])
         self.feat = h5py.File(config['datasets_root'])
 
         self.proposals = generate_proposals(
             config['segment_num'], config['window_width'])
-        embedding_name, embedding_dim = self.config['embedding_type'].split('_')[1], int(self.config['embedding_type'].split('_')[2])
-        self.vocab = torchtext.vocab.GloVe(name=embedding_name, dim=embedding_dim, cache='/media/wwk/HDD1/pretrained_models/glove')
+        embedding_name, embedding_dim = self.config['embedding_type'].split(
+            '_')[1], int(self.config['embedding_type'].split('_')[2])
+        self.vocab = torchtext.vocab.GloVe(
+            name=embedding_name, dim=embedding_dim)
         self.vocab.itos.extend(['<unk>'])
         self.vocab.stoi['<unk>'] = self.vocab.vectors.shape[0]
-        self.vocab.vectors = torch.cat([self.vocab.vectors, torch.zeros(1, self.vocab.dim)], dim=0)
+        self.vocab.vectors = torch.cat(
+            [self.vocab.vectors, torch.zeros(1, self.vocab.dim)], dim=0)
         self.word_embedding = nn.Embedding.from_pretrained(self.vocab.vectors)
 
     def generate_label_feats(self, feat, label):
@@ -80,24 +77,26 @@ class MyDataset(data.Dataset):
         return len(self.datas)
 
     def __getitem__(self, item):
-        # feat = np.load(os.path.join(self.feat_path, '{}.npy'.format(self.datas[item]['vid'])))
-        feat = self.feat[self.datas[item]['vid']][:]
+        if self.dataset != 'ActivityNet':
+            feat = self.feat[self.datas[item]['vid']][:]
+        else:
+            feat = self.feat[self.datas[item]['vid']]['c3d_features'][:]
 
         duration = self.datas[item]['duration']
         timestamp = self.datas[item]['timestamp']
-
 
         feat = torch.from_numpy(feat)
         feat = average_to_fixed_length(feat, self.segment_num)
 
         start_frame = max(self.segment_num * timestamp[0] / duration, 0)
-        end_frame = min(self.segment_num * timestamp[1] / duration, self.segment_num-1)
+        end_frame = min(self.segment_num *
+                        timestamp[1] / duration, self.segment_num-1)
         if start_frame > end_frame:
             start_frame = end_frame
         label = np.asarray([start_frame, end_frame]).astype(np.int32)
 
-        word_idxs = torch.tensor([self.vocab.stoi.get(w, len(self.vocab.stoi)-1) \
-        for w in self.datas[item]['words'].strip().split()], dtype=torch.long)
+        word_idxs = torch.tensor([self.vocab.stoi.get(w, len(self.vocab.stoi)-1)
+                                  for w in self.datas[item]['words'].strip().split()], dtype=torch.long)
         embedding = self.word_embedding(word_idxs)
         embedding_length = embedding.shape[0]
 

@@ -1,19 +1,13 @@
 import torch
-import torch.nn as nn
-from torchvision import utils
 from torch.optim import Adam, SGD, AdamW
 import os
 import argparse
 from torch.utils import data
-import torch.nn.functional as F
 import time
 import datetime
 from tqdm import tqdm
-# from tensorboardX import SummaryWriter
-from utils.losses import *
-from utils.utils import calculate_IoU_batch, AverageMeter, CountMeter, compute_IoU_recall
+from utils.utils import AverageMeter, CountMeter, compute_IoU_recall
 import collections
-import matplotlib.pyplot as plt
 import numpy as np
 from warmup_scheduler import GradualWarmupScheduler
 from utils.scheduler import InverseSquareRootSchedule
@@ -28,7 +22,6 @@ class Trainer(object):
         self.batch_size = config['batch_size']
         self.epochs = config['epochs']
         self.model_log = os.path.join(config['log_root'], 'checkpoints')
-        self.temp_root = os.path.join(config['log_root'], 'temp')
         self.loss_log = []
         self.parser = argparse.ArgumentParser()
         self.parser.add_argument('--lr', default=self.lr, type=float,
@@ -37,13 +30,8 @@ class Trainer(object):
                                  help='weight decay')
 
         self.n_iter = 0
-        if not os.path.exists(os.path.join(config['log_root'], 'writer')):
-            os.makedirs(os.path.join(config['log_root'], 'writer'))
-        # self.writer = SummaryWriter(os.path.join(config['log_root'], 'writer'))
         if not os.path.exists(self.model_log):
             os.makedirs(self.model_log)
-        if not os.path.exists(self.temp_root):
-            os.makedirs(self.temp_root)
 
     def create_optimizer(self, model):
         if self.config['optimizer'] == 'Adam':
@@ -61,8 +49,6 @@ class Trainer(object):
                                  lr=self.lr, weight_decay=0.0005)
         else:
             raise NotImplementedError
-        # self.optimizer.zero_grad()
-        # self.optimizer.step()
 
     def create_lr_schedule(self, optimizer, last_epoch):
         if self.config['lr_schedule'] == 'StepLR':
@@ -106,9 +92,9 @@ class Trainer(object):
                     fea.cuda(), embedding.cuda(), score.cuda(), score_mask.cuda(), label.cuda(), proposals.cuda(), \
                     score_nm.cuda(), adj_mat.cuda()
             self.optimizer.zero_grad()
-            viz, loss = self.model(fea, embedding, embedding_length, score,
-                                   label, score_mask, score_nm, proposals, adj_mat, 'train')
-            
+            loss = self.model(fea, embedding, embedding_length, score,
+                              label, score_mask, score_nm, proposals, adj_mat, 'train')
+
             try:
                 self.optimizer.backward(loss['loss'])
             except:
@@ -121,30 +107,17 @@ class Trainer(object):
                 curr_lr = self.lr_schedule.get_lr()
             self.n_iter += 1
 
-            # for key, value in loss.items():
-                # self.writer.add_scalar(key, value, self.n_iter)
             if i % self.config['save_temp_iters'] == 0:
-            #     for key, value in viz.items():
-            #         self.writer.add_figure(
-            #             tag=key, figure=value, global_step=self.n_iter)
-                print('epoch: {}/{} | iter: {}/{} | loss: {} | lr: {}'.format(epoch, self.epochs, i, len(train_loader), loss['loss'],
-                                                                              curr_lr))
+                print('epoch: {}/{} | iter: {}/{} | loss: {:.3f} | lr: {}'.format(epoch, self.epochs, i, len(train_loader), loss['loss'],
+                                                                              curr_lr[0]))
         # self.lr_schedule.step()
 
     def validation(self, loader):
         self.model.eval()
-        recall_metrics = (1, 5)
-        iou_metrics = (0.1, 0.3, 0.5, 0.7)
         meters_5 = collections.defaultdict(lambda: CountMeter())
         meters = collections.defaultdict(lambda: AverageMeter())
-
-        table = [['Rank@{},mIoU@{}'.format(i, j)
-                  for i in recall_metrics for j in iou_metrics]]
-        iou_metrics = torch.tensor(iou_metrics)
-        recall_metrics = torch.tensor(recall_metrics)
-        recall_x_iou = torch.zeros(len(recall_metrics), len(iou_metrics))
         print('validation...')
-        for i, data_batch in tqdm(enumerate(loader)):
+        for i, data_batch in tqdm(enumerate(loader), total=len(loader)):
             fea, embedding, score, score_mask, embedding_length, label, proposals, score_nm, adj_mat = \
                 data_batch['feat'], data_batch['embedding'], data_batch['score'], data_batch['score_mask'], \
                 data_batch['embedding_length'], data_batch['label'], data_batch['proposals'], data_batch['score_nm'], \
@@ -155,44 +128,38 @@ class Trainer(object):
                     score_nm.cuda(), adj_mat.cuda()
 
             with torch.no_grad():
-                predict_boxes, score, _ = self.model(fea, embedding, embedding_length, score,
-                                                     label, score_mask, score_nm, proposals, adj_mat, 'val')
-                predict_boxes = predict_boxes.squeeze(1)
+                predict_boxes, score = self.model(fea, embedding, embedding_length, score,
+                                                  label, score_mask, score_nm, proposals, adj_mat, 'test')
                 predict_boxes_old = np.round(
                     predict_boxes.cpu().numpy()).astype(np.int32)
-                # for k in range(predict_boxes.shape[0]):
-                gt_boxes = label.cpu().numpy()
-                predict_boxes = predict_boxes_old
-                gt_starts, gt_ends = gt_boxes[:, 0], gt_boxes[:, 1]
-                predict_starts, predict_ends = predict_boxes[:,
-                                                             0], predict_boxes[:, 1]
-                predict_starts[predict_starts < 0] = 0
-                seq_len = self.config['segment_num']
-                predict_ends[predict_ends >= seq_len] = seq_len - 1
-                predict_boxes[:, 0], predict_boxes[:,
-                                                   1] = predict_starts, predict_ends
+                for k in range(predict_boxes.shape[0]):
+                    gt_boxes = label[k]
+                    predict_boxes = predict_boxes_old[k]
+                    predict_flatten = score[k]
+                    predict_starts, predict_ends = predict_boxes[:,
+                                                                 0], predict_boxes[:, 1]
+                    predict_starts[predict_starts < 0] = 0
+                    seq_len = self.config['segment_num']
+                    predict_ends[predict_ends >= seq_len] = seq_len - 1
+                    predict_flatten = predict_flatten.cpu().numpy()
+                    predict_boxes[:, 0], predict_boxes[:,
+                                                       1] = predict_starts, predict_ends
 
-                # topn_IoU_matric = compute_IoU_recall(
-                #     predict_flatten, predict_boxes, gt_boxes)
-                IoUs = calculate_IoU_batch((predict_starts, predict_ends),
-                                           (gt_starts, gt_ends))
-                meters['mIoU'].update(np.mean(IoUs), IoUs.shape[0])
-                for i in range(1, 10, 2):
-                    meters['IoU@0.%d' %
-                           i].update(np.mean(IoUs >= (i / 10)), IoUs.shape[0])
-                # meters_5['mIoU'].update(topn_IoU_matric, 1)
+                    topn_IoU_matrix = compute_IoU_recall(
+                        predict_flatten, predict_boxes, gt_boxes)
+                    meters_5['mIoU'].update(topn_IoU_matrix, 1)
 
-        return_dict = {'IoU@0.5': meters['IoU@0.5'].avg}
-        print('| ', end='')
-        for key, value in meters.items():
-            print('{}, {:.4f}'.format(key, value.avg), end=' | ')
-            meters[key].reset()
-        print()
-        return return_dict
+        IoU_threshs = [0.1, 0.3, 0.5, 0.7]
+        top_n_list = [1, 5]
+        topn_IoU_matrix, count = meters_5['mIoU'].val, meters_5['mIoU'].count
+        for i in range(2):
+            for j in range(4):
+                print('{}, {:.4f}'.format('R' + str(top_n_list[i]) + ' IoU=' + str(IoU_threshs[j]),
+                                          topn_IoU_matrix[i, j] / count), end=' | ')
+        return topn_IoU_matrix[0, 2] / count
 
     def train(self, model, dataset, val_dataset=None):
         self.model = model
-        # self.model.train()
 
         self.create_optimizer(self.model)
         self.create_lr_schedule(self.optimizer, -1)
@@ -217,24 +184,17 @@ class Trainer(object):
         start_time = time.time()
 
         highest_iou = 0
-        final_iou = {}
         for epoch in range(start_epoch, self.epochs):
             self.train_one_epoch(train_loader, epoch)
             if val_dataset != None:
-                iou_dict = self.validation(val_loader)
-                iou = iou_dict['IoU@0.5']
-                # iou = (iou_dict['mIoU'].val)[1, 2] / iou_dict['mIoU'].count
-                print('-----------', iou, '------------------')
-                # self.writer.add_scalar('eval IoU', iou, global_step=epoch)
+                iou = self.validation(val_loader)
                 if iou > highest_iou:
                     highest_iou = iou
-                    final_iou = iou_dict
                     torch.save({'epoch': epoch,
                                 'state_dict': self.model.module.state_dict(),
                                 'optimizer': self.optimizer.state_dict(),
                                 'lr_schedule': self.lr_schedule.state_dict()},
                                os.path.join(self.model_log, 'best_model.pth'.format(epoch)))
-        print(final_iou)
         total_time = time.time() - start_time
         total_time_str = str(datetime.timedelta(seconds=int(total_time)))
         print('Training time {}'.format(total_time_str))
