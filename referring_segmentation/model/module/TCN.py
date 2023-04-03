@@ -104,7 +104,6 @@ class TCN(nn.Module):
     def forward(self, fea, fea_text, mask_local):
         fea_text = fea_text.permute(0, 2, 1)  # B*L*C
         maps_layers = []
-        maps_sep_layers = []
         for i in range(len(self.conv_time)):
             res0 = fea
 
@@ -112,9 +111,8 @@ class TCN(nn.Module):
                 if self.local_attention_type == 'attention':
                     fea = self.local_attention[i](fea, fea_text, mask_local)
                 else:
-                    maps, fea, maps_sep = self.local_attention[i](fea, fea_text)
+                    maps, fea = self.local_attention[i](fea, fea_text)
                     maps_layers.append(maps)
-                    maps_sep_layers.append(maps_sep)
                 fea = res0 + fea
 
             res1 = fea
@@ -130,7 +128,7 @@ class TCN(nn.Module):
             fea = self.conv_time[i](fea)  # B*C*T
             fea = self.conv_convert[i](fea)
             fea = fea + res1
-        return fea, maps_layers, maps_sep_layers
+        return fea, maps_layers
 
 
 def circle_padding(padding, feature):

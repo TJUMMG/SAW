@@ -67,8 +67,6 @@ class Trainer(object):
     def train_one_epoch(self, model, train_loader, epoch):
         model.train()
         for i, data_batch in enumerate(train_loader):
-
-            data_batch = sorted_batch(data_batch)
             frames, labels, embeddings = data_batch['frames'], data_batch['label'], data_batch['word_embedding']
             is_annotated = data_batch['is_annotated']
             embedding_length = data_batch['embedding_length']
@@ -78,13 +76,12 @@ class Trainer(object):
                     labels[f] = labels[f].cuda()
                 embeddings = embeddings.cuda()
             self.optimizer.zero_grad()
-            predictions, maps, _, _ = model(frames, embeddings, embedding_length)
+            predictions, maps = model(frames, embeddings, embedding_length)
             save_frame = torch.cat([f[0].unsqueeze(0) for f in frames], dim=0)
             save_pre = torch.cat([f[0].unsqueeze(0) for f in predictions], dim=0)
             save_label = torch.cat([f[0].unsqueeze(0) for f in labels], dim=0)
 
             loss = []
-            wbce_loss = 0
             n_bce_item = 0
 
             for j, prediction in enumerate(predictions):
@@ -123,8 +120,7 @@ class Trainer(object):
                                 prediction[b].unsqueeze(0), labels[j][b].unsqueeze(0), weight=weight, reduction='mean') + iou(torch.sigmoid(prediction[b].unsqueeze(0)),
                                                                                           labels[j][b].unsqueeze(0)) + (
                                                     1 - ssimloss(torch.sigmoid(prediction[b].unsqueeze(0)), labels[j][b].unsqueeze(0))))
-                            # wbce_loss += F.binary_cross_entropy_with_logits(
-                            #     prediction[b].unsqueeze(0), labels[j][b].unsqueeze(0), weight=weight, reduction='mean')
+
                             n_bce_item += 1
 
                             for map in maps:
@@ -132,8 +128,7 @@ class Trainer(object):
                                     map[j][b].unsqueeze(0), label_low, weight=weight_low, reduction='mean'))
                         else:
                             raise NotImplementedError
-            # with open('./logs/loss_wbce.txt', 'a+') as f:
-            #     f.write(str(wbce_loss.data.cpu().numpy() / n_bce_item) + '\n')
+
             loss = sum(loss) / self.batch_size
             loss.backward()
             self.optimizer.step()
@@ -142,7 +137,6 @@ class Trainer(object):
                 print('epoch: {}/{} | iter: {}/ {} | loss: {} | lr: {}'.format(epoch, self.epochs, i, len(train_loader), loss, self.lr_schedule.get_last_lr()))
                 utils.save_image(save_frame, os.path.join(self.temp_root, 'iter_{}_frame.png'.format(i)), padding=0)
                 utils.save_image(save_label, os.path.join(self.temp_root, 'iter_{}_label.png'.format(i)), padding=0)
-                # utils.save_image(torch.sigmoid(save_map), os.path.join(self.temp_root, 'iter_{}_map.png'.format(i)), padding=0)
                 utils.save_image(torch.sigmoid(save_pre), os.path.join(self.temp_root, 'iter_{}_prediction.png'.format(i)), padding=0)
         self.lr_schedule.step()
         if (epoch + 1) % 10 == 0:
@@ -150,32 +144,6 @@ class Trainer(object):
                         'state_dict': model.module.state_dict(),
                         'optimizer': self.optimizer.state_dict(),
                         'lr_schedule': self.lr_schedule.state_dict()}, os.path.join(self.model_log, 'checkpoint{}.pth'.format(epoch)))
-
-    def train_one_epoch_backbone(self, model, train_loader, epoch):
-        for i, data_batch in enumerate(train_loader):
-            frame, label = data_batch['frame'], data_batch['label']
-            if self.config['cuda']:
-                frame, label = frame.cuda(), label.cuda()
-            self.optimizer.zero_grad()
-            prediction = model(frame)
-
-            loss = F.binary_cross_entropy_with_logits(prediction, label)
-            loss = loss / self.batch_size
-            loss.backward()
-            self.optimizer.step()
-            if i % self.config['save_iters'] == 0:
-                print('epoch: {}/{} | iter: {}/ {} | loss: {} | lr: {}'.format(epoch, self.epochs, i, len(train_loader), loss, self.lr_schedule.get_last_lr()))
-                utils.save_image(frame, os.path.join(self.temp_root, 'iter_{}_frame.png'.format(i)), padding=0)
-                utils.save_image(label, os.path.join(self.temp_root, 'iter_{}_label.png'.format(i)), padding=0)
-                utils.save_image(torch.sigmoid(prediction), os.path.join(self.temp_root, 'iter_{}_prediction.png'.format(i)), padding=0)
-
-        self.lr_schedule.step()
-        if (epoch + 1) % 10 == 0:
-            torch.save({'epoch': epoch,
-                        'state_dict': model.module.state_dict(),
-                        'optimizer': self.optimizer.state_dict(),
-                        'lr_schedule': self.lr_schedule.state_dict()},
-                       os.path.join(self.model_log, 'checkpoint{}.pth'.format(epoch+1)))
 
     def val(self, model, loader):
         model.eval()
@@ -185,13 +153,6 @@ class Trainer(object):
         pres = []
         gts = []
 
-        pres_s = []
-        pres_m = []
-        pres_l = []
-        gts_s = []
-        gts_m = []
-        gts_l = []
-
         with torch.no_grad():
             print('video sequence num: {}'.format(len(loader)))
             print('testing.....')
@@ -200,15 +161,6 @@ class Trainer(object):
                 frames, labels, embedding = data_batch['frames'], data_batch['label'], data_batch['word_embedding']
                 embedding_length = data_batch['embedding_length']
                 is_annotated = data_batch['is_annotated']
-                video = data_batch['video']
-                name = data_batch['name']
-                instance = data_batch['instance']
-                # if not os.path.exists(os.path.join(self.save_fold, video[0])):
-                #     os.mkdir(os.path.join(self.save_fold, video[0]))
-                #     os.mkdir(os.path.join(self.save_fold, video[0], 'pre'))
-                #     os.mkdir(os.path.join(self.save_fold, video[0], 'gt'))
-                # video_save_root = os.path.join(self.save_fold, video[0], 'pre')
-                # gt_save_fold = os.path.join(self.save_fold, video[0], 'gt')
                 if self.config['cuda']:
                     for f in range(len(frames)):
                         frames[f] = frames[f].cuda()
@@ -226,15 +178,6 @@ class Trainer(object):
                         pre_thres = torch.where(pre>0.5, torch.ones_like(pre), torch.zeros_like(pre))
                         gts.append(labels[j][0][0].cpu().numpy().astype(np.uint8))
                         pres.append(pre_thres[0][0].cpu().numpy().astype(np.uint8))
-                        # if len(predictions) > 80 and len(predictions) < 150:
-                        #     gts_m.append(labels[j][0][0].cpu().numpy().astype(np.uint8))
-                        #     pres_m.append(pre_thres[0][0].cpu().numpy().astype(np.uint8))
-                        # if len(predictions) > 100:
-                        #     gts_l.append(labels[j][0][0].cpu().numpy().astype(np.uint8))
-                        #     pres_l.append(pre_thres[0][0].cpu().numpy().astype(np.uint8))
-                        # else:
-                        #     gts_s.append(labels[j][0][0].cpu().numpy().astype(np.uint8))
-                        #     pres_s.append(pre_thres[0][0].cpu().numpy().astype(np.uint8))
 
                 total_times += time.time() - start_time
 
@@ -248,20 +191,6 @@ class Trainer(object):
         meaIOU, overallIOU, P5, P6, P7, P8, P9, mAP = report_result(pres, gts)
         print('evaluation results: meanIOU: {} | overallIOU: {} | P@5: {} | P@6: {} | P@7: {} | P@8: {} | P@9: {} | mAP: {}'.format(meaIOU, overallIOU, P5, P6, P7, P8, P9, mAP))
 
-        # meaIOU, overallIOU, P5, P6, P7, P8, P9, mAP = report_result(pres_s, gts_s)
-        # print(
-        #     'evaluation short results: meanIOU: {} | overallIOU: {} | P@5: {} | P@6: {} | P@7: {} | P@8: {} | P@9: {} | mAP: {}'.format(
-        #         meaIOU, overallIOU, P5, P6, P7, P8, P9, mAP))
-
-        # # meaIOU, overallIOU, P5, P6, P7, P8, P9, mAP = report_result(pres_m, gts_m)
-        # # print(
-        # #     'evaluation middle results: meanIOU: {} | overallIOU: {} | P@5: {} | P@6: {} | P@7: {} | P@8: {} | P@9: {} | mAP: {}'.format(
-        # #         meaIOU, overallIOU, P5, P6, P7, P8, P9, mAP))
-
-        # meaIOU, overallIOU, P5, P6, P7, P8, P9, mAP = report_result(pres_l, gts_l)
-        # print(
-        #     'evaluation long results: meanIOU: {} | overallIOU: {} | P@5: {} | P@6: {} | P@7: {} | P@8: {} | P@9: {} | mAP: {}'.format(
-        #         meaIOU, overallIOU, P5, P6, P7, P8, P9, mAP))
         return meaIOU
 
     def train(self, model, dataset, val_dataset):
@@ -304,32 +233,6 @@ class Trainer(object):
         total_time = time.time() - start_time
         total_time_str = str(datetime.timedelta(seconds=int(total_time)))
         print('Training time {}'.format(total_time_str))
-
-        
-def sorted_batch(data_batch):
-    embedding_length = data_batch['embedding_length']
-    new_length, index = torch.sort(embedding_length, descending=True)
-    batch = data_batch['word_embedding'].shape[0]
-    new_isannotated = []
-    new_frames = []
-    new_labels = []
-    for i in range(len(data_batch['frames'])):
-        new_frames.append(torch.zeros_like(data_batch['frames'][i]))
-        new_labels.append(torch.zeros_like(data_batch['label'][i]))
-        new_isannotated.append(torch.zeros_like(data_batch['is_annotated'][i]))
-    new_embedding = torch.zeros_like(data_batch['word_embedding'])
-    for b in range(batch):
-        new_embedding[b] = data_batch['word_embedding'][index[b]]
-        for j in range(len(data_batch['frames'])):
-            new_frames[j][b] = data_batch['frames'][j][index[b]]
-            new_labels[j][b] = data_batch['label'][j][index[b]]
-            new_isannotated[j][b] = data_batch['is_annotated'][j][index[b]]
-    data_batch['word_embedding'] = new_embedding
-    data_batch['embedding_length'] = new_length
-    data_batch['frames'] = new_frames
-    data_batch['label'] = new_labels
-    data_batch['is_annotated'] = new_isannotated
-    return data_batch
 
 
 def generate_weight(target):

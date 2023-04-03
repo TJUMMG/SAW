@@ -14,44 +14,58 @@ We propose a unified framework which handles the whole video in sequential manne
 
 * torchtext 0.10.1
 
-* flair 0.11.1
 
-## Referring Segmentation
+## Referring Video Segmentation
 
 run `cd referring_segmentation` for referring video segmentation task.
 
 ### 1. Dataset
 
-Download the A2D Sentences dataset and J-HMDB Sentences dataset from [https://kgavrilyuk.github.io/publication/actor_action/](https://kgavrilyuk.github.io/publication/actor_action/) and convert the videos to RGB frames. The following directory structure is expected:
+Download the A2D Sentences dataset and J-HMDB Sentences dataset from [https://kgavrilyuk.github.io/publication/actor_action/](https://kgavrilyuk.github.io/publication/actor_action/) and convert the videos to RGB frames. 
+
+For A2D Sentences dataset, run `python pre_proc\video2imgs.py` to convert videos to RGB frames. The following directory structure is expected:
+
 ```python
--A2D
+-a2d_sentences
     -Rename_Images
     -a2d_annotation_with_instances
--JHMDB
+    -videoset.csv
+    -a2d_missed_videos.txt
+    -a2d_annotation.txt
+-jhmdb_sentences
     -Rename_Images
     -puppet_mask
+    -jhmdb_annotation.txt
 ```
-Edit the item `datasets_root` in `json/config.json` to be the current dataset path.
 
-### 2. Word Embedding
+Edit the item `datasets_root` in `json/onfig_$DATASET$.json` to be the current dataset path.
 
-Download the Glove embedding from [https://nlp.stanford.edu/projects/glove/](https://nlp.stanford.edu/projects/glove/) and put it into `model/pretrained/`.
+Run `python pre_proc\generate_data_list.py` to generate the training and testing data splits.
 
-### 3. Backbone
+### 2. Backbone
 
 Download the pretrained DeepLabResNet from [https://github.com/VainF/DeepLabV3Plus-Pytorch](https://github.com/VainF/DeepLabV3Plus-Pytorch) and put it into `model/pretrained/`. 
 
 ### 4. Training
 
-Set the item `"mode"` to `"train“` in `json/config.json` and then please run:
+Only the A2D Sentences dataset is adopted for training, run:
+
+```python
+python main.py --json_file=json\config_a2d_sentences.json --mode=train
 ```
-python main.py
-```
+
 ### 5. Evaluation
 
-Set the item `"mode"` to `"test“` in `json/config.json` and then please run:
-```
-python main.py
+For A2d Sentences dataset, run:
+
+```python
+python main.py --json_file=json\config_a2d_sentences.json --mode=test
+``` 
+
+For JHMDB Sentences dataset, run:
+
+```python
+python main.py --json_file=json\config_jhmdb_sentences.json --mode=test
 ``` 
 
 ## Temporal Sentence Grounding

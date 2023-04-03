@@ -1,9 +1,8 @@
 from model.backbone.resnet import ResNet50, ResNet34, ResNet101, ResNet18, Deeplab_ResNet50, Deeplab_ResNet101
-from model.backbone.mobilenet import Mobilenet_deeplab
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from model.module.attention import GlobalTextPresentation, GlobalVideoPresentation, GlobalAttention, MuTan
+from model.module.attention import GlobalTextPresentation, GlobalAttention, MuTan
 from model.module.TCN import TCN
 import numpy as np
 from model.backbone.frozen_batchnorm import FrozenBatchNorm2d
@@ -113,7 +112,7 @@ class TextEncoder(nn.Module):
             self.backbone = nn.GRU(config['embedding_dim'], config['text_feature_dim'], batch_first=True, bidirectional=False)
 
     def forward(self, text, embedding_length):
-        text = torch.nn.utils.rnn.pack_padded_sequence(text, list(embedding_length), True)
+        text = torch.nn.utils.rnn.pack_padded_sequence(text, list(embedding_length), batch_first=True, enforce_sorted=False)
         word_embedding, _ = self.backbone(text)
         word_embedding, _ = torch.nn.utils.rnn.pad_packed_sequence(word_embedding, True)
         if self.config['gru_bidirection']:
@@ -153,7 +152,7 @@ class GlobalLocalTCN(nn.Module):
         for b in range(embedding_mask.shape[0]):
             embedding_mask[b, :, :int(embedding_length[b])] = 1
         mask_global = embedding_mask
-        global_text, weight_text_global_out = self.global_text(word_embedding, mask_global)  # B*C2*1*1
+        global_text = self.global_text(word_embedding, mask_global)  # B*C2*1*1
         feas = []
         for videofea in videofeas:
             spatial = generate_spatial_batch(videofea.shape[0], videofea.shape[-2], videofea.shape[-1])
@@ -179,11 +178,11 @@ class GlobalLocalTCN(nn.Module):
         mask_local = torch.matmul(frame_mask, embedding_mask)
         fea = self.projection(fea)
         if self.config['filter_type'] != 'global':
-            fea, maps, maps_sep = self.TCN(fea, word_embedding, mask_local)
+            fea, maps = self.TCN(fea, word_embedding, mask_local)
         else:
-            fea, maps, maps_sep = self.TCN(fea, global_text.squeeze(-1), mask_local)
+            fea, maps = self.TCN(fea, global_text.squeeze(-1), mask_local)
         feas = fea.chunk(n_frames, dim=2)
-        return feas, maps, maps_sep, weight_text_global_out
+        return feas, maps
 
 class Model(nn.Module):
     def __init__(self, config):
@@ -207,7 +206,7 @@ class Model(nn.Module):
             video_fea, low_level_fea = self.video_encoder(frame)
             video_feas.append(video_fea)
             low_level_feas.append(low_level_fea)
-        out_feas, maps, maps_sep, weight_text_global_out = self.bone(video_feas, text_fea, embedding_length)
+        out_feas, maps = self.bone(video_feas, text_fea, embedding_length)
         outs = []
         for i in range(len(frames)):
             fea = out_feas[i].squeeze(2)
@@ -215,7 +214,7 @@ class Model(nn.Module):
             out = F.interpolate(out, frames[i].shape[2:], mode='bilinear', align_corners=True)
             outs.append(out)
 
-        return outs, maps, maps_sep, weight_text_global_out
+        return outs, maps
 
 def generate_spatial_batch(N, featmap_H, featmap_W):
     spatial_batch_val = np.zeros((N, featmap_H, featmap_W, 8), dtype=np.float32)

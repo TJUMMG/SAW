@@ -17,23 +17,9 @@ class GlobalTextPresentation(nn.Module):
             mask = mask.permute(0, 2, 1)
             weight_text = weight_text.masked_fill(mask == 0, -1e9)
         weight_text = weight_text.softmax(dim=1)
-        weight_text_global_out = weight_text.mean(dim=2) # B*L
         fea_text_global = fea_text * weight_text
         fea_text_global = fea_text_global.sum(dim=1, keepdim=True).permute(0, 2, 1).unsqueeze(-1)  # B*C*1*1
-        return fea_text_global, weight_text_global_out
-
-
-class GlobalVideoPresentation(nn.Module):
-    def __init__(self, video_dim):
-        super(GlobalVideoPresentation, self).__init__()
-        self.W_video = nn.Conv3d(video_dim, video_dim, 1, 1)
-
-    def forward(self, fea_video):
-
-        weight_video = torch.softmax(self.W_video(fea_video), dim=2)
-        fea_video_global = fea_video * weight_video
-        fea_video_global = fea_video_global.sum(dim=2)  # B*C*H*W
-        return fea_video_global
+        return fea_text_global
 
 
 class GlobalAttention(nn.Module):
@@ -134,35 +120,6 @@ class MuTan(nn.Module):
         mutan_fea = F.normalize(mutan_fea, dim=1)
         return mutan_fea
 
-
-# class RelevanceFilter(nn.Module):
-#     def __init__(self, text_fea_dim, video_fea_dim, attention_dim, groups=8):
-#         super(RelevanceFilter, self).__init__()
-#         self.Wv = nn.Conv3d(video_fea_dim, 2*attention_dim, 1, 1)
-#         self.Wt = nn.Linear(text_fea_dim, attention_dim)
-#         self.groups = groups
-#
-#     def forward(self, video_fea, text_fea):
-#         # text_fea = text_fea.permute(0, 2, 1)
-#         kernel = self.Wt(text_fea)  # B*L*C
-#         fea = self.Wv(video_fea)
-#         B, C, T, H, W = video_fea.shape
-#         k, v = fea.chunk(2, dim=1)
-#         v = rearrange(v, 'b (head c) t h w -> b head c t h w', head=self.groups)
-#         k = rearrange(k, 'b (head c) t h w -> b head (t h w) c', head=self.groups)
-#         q = rearrange(kernel, 'b l (h c) -> b h l c', h=self.groups)
-#
-#         att = einsum('b h i c, b h j c -> b h i j', q, k)
-#         att = att.view(B, self.groups, -1, T, H, W)
-#         maps_sep = att.mean(dim=1) # B*L*T*H*W
-#         att = att.mean(dim=2, keepdim=True)  # B*h*1*T*H*W
-#         active_maps = att.mean(dim=1)  # B*1*T*H*W
-#         fea = torch.sigmoid(att) * v
-#         fea = rearrange(fea, 'b head c t h w -> b (head c) t h w', head=self.groups)
-#         maps = active_maps.permute(2, 0, 1, 3, 4)  # T*B*1*H*W
-#         maps = [maps[i] for i in range(T)]
-#         return maps, fea, maps_sep
-
 class RelevanceFilter(nn.Module):
     def __init__(self, text_fea_dim, video_fea_dim, attention_dim, groups=8, kernelsize=(1, 1, 1)):
         super(RelevanceFilter, self).__init__()
@@ -195,7 +152,7 @@ class RelevanceFilter(nn.Module):
         maps = active_map.permute(
             2, 0, 1, 3, 4)
         maps = [maps[i] for i in range(T)]
-        return maps, out, None
+        return maps, out
 
 
 
